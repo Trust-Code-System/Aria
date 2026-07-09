@@ -1,0 +1,34 @@
+Aria Technology Stack Overview
+
+Aria is a private AI workspace and second brain application. It was created as a Chief of Staff tool for personal productivity.
+
+Main Features:
+- Project management with workspaces
+- Knowledge base with RAG (Retrieval Augmented Generation)
+- Web research with citations using Perplexity or Tavily
+- A memory system for storing user preferences
+- Report generation with PDF export
+
+Technology Stack:
+- Framework: Next.js 14 with App Router and TypeScript
+- Database: Supabase PostgreSQL with pgvector for vector search
+- Authentication: Supabase Auth with Row Level Security
+- AI Providers: OpenAI, Anthropic, and Google Generative AI
+- Embeddings: text-embedding-3-small with 1536 dimensions
+- Storage: Supabase private storage bucket for documents
+- UI: Tailwind CSS with custom components
+
+Architecture Highlights:
+- Provider-agnostic design with pluggable AI backends
+- Row Level Security ensures each user can only see their own data
+- The admin portal shows sanitized error logs and user feedback
+- Documents are chunked with overlapping boundaries for better retrieval
+- Vector similarity search uses cosine distance with pgvector
+- The embedding dimension is 1536 matching OpenAI text-embedding-3-small
+- Memory system injects approved memories into chat context
+
+Security Model:
+- All private tables carry workspace_id and are protected by RLS
+- Service-role key is server-only and never exposed to the browser
+- Memory refuses to store obvious credentials or secrets
+- Error logs contain only sanitized metadata, never raw content

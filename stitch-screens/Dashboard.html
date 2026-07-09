@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aria - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-container": "#b0aef9",
+                        "on-secondary": "#2a276a",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "on-background": "#e4e1ee",
+                        "on-error": "#690005",
+                        "on-surface": "#e4e1ee",
+                        "error-container": "#93000a",
+                        "primary-container": "#4f46e5",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#393842",
+                        "surface-container-high": "#2a2933",
+                        "on-primary": "#1d00a5",
+                        "on-secondary-fixed": "#140f54",
+                        "on-tertiary-container": "#ffd2be",
+                        "tertiary-container": "#a44100",
+                        "tertiary-fixed": "#ffdbcc",
+                        "tertiary": "#ffb695",
+                        "surface-tint": "#c3c0ff",
+                        "on-error-container": "#ffdad6",
+                        "secondary-container": "#413f82",
+                        "surface-variant": "#35343e",
+                        "surface-container-low": "#1b1b24",
+                        "on-primary-fixed": "#0f0069",
+                        "outline-variant": "#464555",
+                        "surface-container-lowest": "#0e0d16",
+                        "on-tertiary-fixed": "#351000",
+                        "primary-fixed": "#e2dfff",
+                        "surface-container-highest": "#35343e",
+                        "on-surface-variant": "#c7c4d8",
+                        "on-primary-container": "#dad7ff",
+                        "inverse-surface": "#e4e1ee",
+                        "on-tertiary": "#571f00",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "background": "#13121b",
+                        "inverse-on-surface": "#302f39",
+                        "on-secondary-fixed-variant": "#413f82",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary-fixed": "#e2dfff",
+                        "primary": "#c3c0ff",
+                        "inverse-primary": "#4d44e3",
+                        "surface-dim": "#13121b",
+                        "surface": "#13121b",
+                        "surface-container": "#1f1f28",
+                        "outline": "#918fa1",
+                        "secondary": "#c3c0ff",
+                        "secondary-fixed-dim": "#c3c0ff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "xs": "4px",
+                        "unit": "4px",
+                        "lg": "24px",
+                        "xxl": "48px",
+                        "gutter": "24px",
+                        "margin": "32px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xl": "32px"
+                    },
+                    fontFamily: {
+                        "display-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-base": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "section-label": ["Inter"],
+                        "display-md-mobile": ["Inter"]
+                    },
+                    fontSize: {
+                        "display-md": ["24px", { lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "label-md": ["14px", { lineHeight: "20px", fontWeight: "500" }],
+                        "display-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.02em", fontWeight: "600" }],
+                        "body-base": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+                        "body-sm": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+                        "section-label": ["13px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+                        "display-md-mobile": ["22px", { lineHeight: "28px", fontWeight: "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #13121b; color: #e4e1ee; }
+        .glass-panel {
+            background: rgba(42, 41, 51, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid #464555;
+        }
+        .stat-card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            border-color: #c3c0ff;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant dark:border-outline-variant flex flex-col p-lg overflow-y-auto z-40">
+<!-- Brand Header -->
+<div class="flex items-center gap-md mb-xl">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container" data-icon="smart_toy">smart_toy</span>
+</div>
+<div>
+<h1 class="font-display-md text-display-md font-bold text-on-surface dark:text-on-surface">Aria</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Premium AI Workspace</p>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md py-sm px-md rounded-full mb-xl flex items-center justify-center gap-sm hover:bg-surface-tint transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+            + New chat
+        </button>
+<!-- Main Navigation -->
+<nav class="flex-1 flex flex-col gap-sm">
+<!-- Active: Dashboard -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-xl font-label-md text-label-md scale-[0.98] transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+                Projects
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+                Agents
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="book_2">book_2</span>
+                Knowledge
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+                Memory
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+                Reports
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="admin_panel_settings">admin_panel_settings</span>
+                Admin
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+</nav>
+<!-- Footer Navigation -->
+<div class="mt-auto pt-lg border-t border-outline-variant flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+                Profile
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+                Theme
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-64 p-margin min-h-screen bg-background relative overflow-hidden">
+<!-- Ambient Background Glow -->
+<div class="absolute top-0 left-1/4 w-[800px] h-[400px] bg-primary-container rounded-full blur-[120px] opacity-10 pointer-events-none"></div>
+<!-- Top Header area -->
+<header class="flex justify-between items-center mb-xl relative z-10">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface mb-xs">Welcome back, Alex</h2>
+<p class="font-body-base text-body-base text-on-surface-variant">Here is a summary of your workspace activity.</p>
+</div>
+<div class="flex gap-md">
+<button class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<!-- Stat Row -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-xl relative z-10">
+<!-- Card 1 -->
+<div class="glass-panel rounded-xl p-lg stat-card-hover flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-primary transition-colors" data-icon="arrow_outward">arrow_outward</span>
+</div>
+<div class="mt-auto">
+<span class="font-display-lg text-display-lg block mb-xs">12</span>
+<span class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Active Projects</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass-panel rounded-xl p-lg stat-card-hover flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-tertiary border border-outline-variant">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-tertiary transition-colors" data-icon="arrow_outward">arrow_outward</span>
+</div>
+<div class="mt-auto">
+<span class="font-display-lg text-display-lg block mb-xs">148</span>
+<span class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Documents</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-panel rounded-xl p-lg stat-card-hover flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary-fixed border border-outline-variant">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-primary-fixed transition-colors" data-icon="arrow_outward">arrow_outward</span>
+</div>
+<div class="mt-auto">
+<span class="font-display-lg text-display-lg block mb-xs">2,041</span>
+<span class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Memories Logged</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="glass-panel rounded-xl p-lg stat-card-hover flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-secondary-container border border-outline-variant">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer hover:text-on-secondary-container transition-colors" data-icon="arrow_outward">arrow_outward</span>
+</div>
+<div class="mt-auto">
+<span class="font-display-lg text-display-lg block mb-xs">8</span>
+<span class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Reports Ready</span>
+</div>
+</div>
+</section>
+<!-- Recent Chats Section -->
+<section class="relative z-10 max-w-4xl">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-display-md text-display-md">Recent Chats</h3>
+<button class="font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors">View All</button>
+</div>
+<div class="glass-panel rounded-xl overflow-hidden flex flex-col">
+<!-- Example of an Empty State, since requested in prompt if empty. We will show the empty state visually. -->
+<div class="py-xxl px-lg flex flex-col items-center justify-center text-center">
+<div class="w-16 h-16 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center mb-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[32px]" data-icon="forum">forum</span>
+</div>
+<p class="font-body-base text-body-base text-on-surface mb-xs">No conversations yet</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-lg max-w-sm">Your AI assistants are ready to help. Start a new chat to begin collaborating.</p>
+<button class="bg-primary text-on-primary font-label-md text-label-md py-sm px-lg rounded-full flex items-center justify-center gap-sm hover:bg-surface-tint transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                        Start your first chat
+                    </button>
+</div>
+</div>
+</section>
+</main>
+</body></html>

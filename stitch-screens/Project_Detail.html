@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aria - Project Detail</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-container": "#b0aef9",
+                      "on-secondary": "#2a276a",
+                      "on-tertiary-fixed-variant": "#7b2f00",
+                      "on-background": "#e4e1ee",
+                      "on-error": "#690005",
+                      "on-surface": "#e4e1ee",
+                      "error-container": "#93000a",
+                      "primary-container": "#4f46e5",
+                      "tertiary-fixed-dim": "#ffb695",
+                      "error": "#ffb4ab",
+                      "surface-bright": "#393842",
+                      "surface-container-high": "#2a2933",
+                      "on-primary": "#1d00a5",
+                      "on-secondary-fixed": "#140f54",
+                      "on-tertiary-container": "#ffd2be",
+                      "tertiary-container": "#a44100",
+                      "tertiary-fixed": "#ffdbcc",
+                      "tertiary": "#ffb695",
+                      "surface-tint": "#c3c0ff",
+                      "on-error-container": "#ffdad6",
+                      "secondary-container": "#413f82",
+                      "surface-variant": "#35343e",
+                      "surface-container-low": "#1b1b24",
+                      "on-primary-fixed": "#0f0069",
+                      "outline-variant": "#464555",
+                      "surface-container-lowest": "#0e0d16",
+                      "on-tertiary-fixed": "#351000",
+                      "primary-fixed": "#e2dfff",
+                      "surface-container-highest": "#35343e",
+                      "on-surface-variant": "#c7c4d8",
+                      "on-primary-container": "#dad7ff",
+                      "inverse-surface": "#e4e1ee",
+                      "on-tertiary": "#571f00",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "background": "#13121b",
+                      "inverse-on-surface": "#302f39",
+                      "on-secondary-fixed-variant": "#413f82",
+                      "on-primary-fixed-variant": "#3323cc",
+                      "secondary-fixed": "#e2dfff",
+                      "primary": "#c3c0ff",
+                      "inverse-primary": "#4d44e3",
+                      "surface-dim": "#13121b",
+                      "surface": "#13121b",
+                      "surface-container": "#1f1f28",
+                      "outline": "#918fa1",
+                      "secondary": "#c3c0ff",
+                      "secondary-fixed-dim": "#c3c0ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "unit": "4px",
+                      "lg": "24px",
+                      "xxl": "48px",
+                      "gutter": "24px",
+                      "margin": "32px",
+                      "md": "16px",
+                      "sm": "8px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "display-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "body-base": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "section-label": ["Inter"],
+                      "display-md-mobile": ["Inter"]
+              },
+              "fontSize": {
+                      "display-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                      "label-md": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                      "display-lg": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                      "body-base": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                      "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                      "section-label": ["13px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                      "display-md-mobile": ["22px", { "lineHeight": "28px", "fontWeight": "600" }]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(27, 27, 36, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(70, 69, 85, 0.3);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #35343e;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #464555;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface flex h-screen overflow-hidden antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-container-low text-primary dark:text-primary font-body-base text-body-base fixed left-0 top-0 h-screen w-64 border-r border-outline-variant dark:border-outline-variant flex flex-col h-full p-lg overflow-y-auto custom-scrollbar z-50">
+<!-- Header -->
+<div class="flex items-center gap-md mb-xl">
+<div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant">
+<img alt="Aria AI Robot Mascot" class="w-full h-full object-cover" data-alt="A stylized 3D avatar of a premium AI robot mascot named Aria. The robot has a glossy pastel finish, a calm expression, and soft glowing elements, set against a dark, minimalist tech background, embodying a serious, calm, and focused modern SaaS aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOMrHk2LSi7gCFZjJ-35UgHFYiAKYLX5RK41uqKCbPjg2jTrgkZpGhpMy8FBcp3k6i6he-Og7elchxQwmg1OBVeqavnQ4FMdTXko2OBwy9eHRMUAKfmFMizwUI8shdvUw3rDF30AXEyKHmzEojbvMxJwZGFbWrd6j3O-pvJoPofvR49TfLS-C2SypLxVaOq_ak3fjufU-06LFLGbVnhJLX3TbyqO_nWP9RADM2e58riuVVvX7SSaR6"/>
+</div>
+<div>
+<h1 class="font-display-md text-display-md font-bold text-on-surface dark:text-on-surface">Aria</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Premium AI Workspace</p>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full py-sm px-md mb-xl bg-primary text-on-primary rounded-xl font-label-md text-label-md hover:bg-primary-fixed-dim transition-colors duration-200 flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">add</span>
+            + New chat
+        </button>
+<!-- Main Navigation -->
+<div class="flex flex-col gap-sm flex-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-xl transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+                Projects
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+                Agents
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="book_2">book_2</span>
+                Knowledge
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+                Memory
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+                Reports
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl mt-auto" href="#">
+<span class="material-symbols-outlined" data-icon="admin_panel_settings">admin_panel_settings</span>
+                Admin
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+</div>
+<!-- Footer Navigation -->
+<div class="mt-xl pt-lg border-t border-outline-variant flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+                Profile
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+                Theme
+            </a>
+<a class="flex items-center gap-md px-md py-sm text-error hover:bg-error-container hover:text-on-error-container transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Logout
+            </a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="ml-64 flex-1 flex flex-col h-screen overflow-hidden bg-background">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-surface text-primary dark:text-primary w-full sticky top-0 z-40 border-b border-outline-variant/30 glass-panel">
+<div class="flex justify-between items-center w-full px-xl py-md max-w-[1150px] mx-auto">
+<!-- Breadcrumb / Project Title -->
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm text-on-surface-variant font-body-sm text-body-sm">
+<a class="hover:text-primary transition-colors" href="#">Projects</a>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-on-surface">Q3 Marketing Automation</span>
+</div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Q3 Marketing Automation</h2>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-lg">
+<button class="bg-primary-container text-on-primary-container hover:bg-primary-fixed hover:text-on-primary-fixed transition-colors px-md py-sm rounded-full font-label-md text-label-md flex items-center gap-sm shadow-sm">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+                        Chat in project
+                    </button>
+<div class="h-6 w-px bg-outline-variant/50"></div>
+<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all p-sm rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all p-sm rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Tab Bar -->
+<div class="w-full px-xl max-w-[1150px] mx-auto flex gap-lg font-label-md text-label-md">
+<button class="py-md text-primary font-bold border-b-2 border-primary" id="tab-overview">Overview</button>
+<button class="py-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all px-sm" id="tab-files">Files</button>
+<button class="py-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all px-sm" id="tab-chats">Chats</button>
+<button class="py-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all px-sm" id="tab-memory">Memory</button>
+</div>
+</header>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-xl">
+<div class="max-w-[1150px] mx-auto grid grid-cols-1 xl:grid-cols-3 gap-xl">
+<!-- Left Column: Form Content -->
+<div class="xl:col-span-2 flex flex-col gap-lg" id="content-overview">
+<!-- Overview Card -->
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-xl p-lg flex flex-col gap-lg shadow-sm">
+<h3 class="font-display-md text-display-md text-on-surface">Project Details</h3>
+<div class="flex flex-col gap-sm">
+<label class="font-label-md text-label-md text-on-surface-variant" for="projectName">Project Name</label>
+<input class="w-full bg-surface-container-highest border border-outline-variant text-on-surface rounded-lg px-md py-sm focus:border-primary focus:ring-1 focus:ring-primary transition-colors font-body-base text-body-base placeholder-on-surface-variant/50" id="projectName" type="text" value="Q3 Marketing Automation"/>
+</div>
+<div class="flex flex-col gap-sm">
+<label class="font-label-md text-label-md text-on-surface-variant" for="projectDescription">Description</label>
+<input class="w-full bg-surface-container-highest border border-outline-variant text-on-surface rounded-lg px-md py-sm focus:border-primary focus:ring-1 focus:ring-primary transition-colors font-body-base text-body-base placeholder-on-surface-variant/50" id="projectDescription" type="text" value="Automating outreach pipelines for the upcoming Q3 product launch."/>
+</div>
+<div class="flex flex-col gap-sm">
+<label class="font-label-md text-label-md text-on-surface-variant flex justify-between" for="projectInstructions">
+                                Custom Instructions
+                                <span class="text-xs text-on-surface-variant/50">Used by Agents in this project</span>
+</label>
+<textarea class="w-full bg-surface-container-highest border border-outline-variant text-on-surface rounded-lg px-md py-sm focus:border-primary focus:ring-1 focus:ring-primary transition-colors font-body-base text-body-base placeholder-on-surface-variant/50 resize-y custom-scrollbar" id="projectInstructions" rows="6">Focus on tone alignment with our new brand guidelines. Prioritize brevity and actionable CTA's. Avoid jargon related to legacy systems.</textarea>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center justify-between mt-md">
+<div class="flex gap-md">
+<button class="bg-surface-container-high hover:bg-surface-variant border border-outline-variant text-error hover:text-on-error hover:border-error transition-colors px-lg py-sm rounded-full font-label-md text-label-md flex items-center gap-sm shadow-sm">
+<span class="material-symbols-outlined text-sm">delete</span>
+                                Delete Project
+                            </button>
+<button class="bg-surface-container-high hover:bg-surface-variant border border-outline-variant text-on-surface transition-colors px-lg py-sm rounded-full font-label-md text-label-md flex items-center gap-sm shadow-sm">
+<span class="material-symbols-outlined text-sm">archive</span>
+                                Archive
+                            </button>
+</div>
+<button class="bg-primary text-on-primary hover:bg-primary-fixed-dim transition-colors px-xl py-sm rounded-full font-label-md text-label-md shadow-sm">
+                            Save Changes
+                        </button>
+</div>
+</div>
+<!-- Right Column: Meta Info / Quick Files (Simulated Glass/Bento approach) -->
+<div class="flex flex-col gap-lg">
+<!-- Meta Info Card -->
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-xl p-lg flex flex-col gap-md shadow-sm relative overflow-hidden">
+<!-- Subtle decorative gradient -->
+<div class="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+<h4 class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Meta Information</h4>
+<div class="flex flex-col gap-sm font-body-sm text-body-sm">
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Created</span>
+<span class="text-on-surface">Oct 24, 2023</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Last Modified</span>
+<span class="text-on-surface">2 hours ago</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30">
+<span class="text-on-surface-variant">Owner</span>
+<span class="text-on-surface flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-surface-container-high overflow-hidden">
+<img alt="Owner Avatar" class="w-full h-full object-cover" data-alt="A very tiny, professional headshot avatar of a corporate tech worker, soft lighting, neutral background, suitable for a dark mode SaaS interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcxewOrrnn_p1DmOp1AJhlmpRQgTPHKr6RxPLquZ93n2ieB5Jd6-4QMf4EHRxMdQIkxrb49FKs1zI3tP8yBiVF-GGQN8_Jd3pyQRqm_-awNQNXWZLbJYmP1oaz_LbPrTV6FxNFpUtne90m6qdHwgd8jtAktY3fQVKw0XUmUcfc_Zwg9olFhdS_-QNRyDdZPDTILZPGDgNqmFABI5wGSlirLCpDgQgOXouTE_x-E1rCTXQ35EdeeZi_"/>
+</div>
+                                    Sarah J.
+                                </span>
+</div>
+<div class="flex justify-between items-center py-xs">
+<span class="text-on-surface-variant">Active Agents</span>
+<span class="bg-primary-container/20 text-primary px-2 py-0.5 rounded-full text-xs font-medium">3</span>
+</div>
+</div>
+</div>
+<!-- Quick Files Preview (Bento style) -->
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-xl p-lg flex flex-col gap-md shadow-sm">
+<div class="flex justify-between items-center">
+<h4 class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider">Recent Files</h4>
+<button class="text-primary hover:text-primary-fixed text-xs font-medium transition-colors" onclick="document.getElementById('tab-files').click()">View All</button>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm p-sm rounded-lg hover:bg-surface-variant transition-colors cursor-pointer group">
+<div class="w-8 h-8 rounded bg-surface-container-highest border border-outline-variant/50 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-sm text-body-sm text-on-surface truncate">Q3_Brand_Guidelines.pdf</p>
+<p class="text-xs text-on-surface-variant">2.4 MB</p>
+</div>
+</div>
+<div class="flex items-center gap-sm p-sm rounded-lg hover:bg-surface-variant transition-colors cursor-pointer group">
+<div class="w-8 h-8 rounded bg-surface-container-highest border border-outline-variant/50 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">table_view</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-sm text-body-sm text-on-surface truncate">Outreach_Targets_v2.csv</p>
+<p class="text-xs text-on-surface-variant">156 KB</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hidden Files Tab Content (For demonstration of structure) -->
+<div class="max-w-[1150px] mx-auto hidden flex-col gap-xl" id="content-files">
+<!-- Drag Drop Zone -->
+<div class="w-full border-2 border-dashed border-outline-variant hover:border-primary rounded-xl p-xl flex flex-col items-center justify-center gap-sm bg-surface-container-lowest transition-colors cursor-pointer group h-64">
+<div class="w-16 h-16 rounded-full bg-surface-container-high group-hover:bg-primary-container/20 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors mb-sm">
+<span class="material-symbols-outlined text-3xl">cloud_upload</span>
+</div>
+<h3 class="font-display-md text-display-md text-on-surface">Upload Files to Project</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center max-w-md">Drag and drop documents, spreadsheets, or images here, or click to browse. Files will be available to all agents in this project.</p>
+</div>
+<!-- File List -->
+<div class="flex flex-col gap-sm">
+<h4 class="font-section-label text-section-label text-on-surface-variant uppercase tracking-wider mb-sm">Project Documents</h4>
+<!-- File Item -->
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-xl p-md flex items-center justify-between hover:bg-surface-variant transition-colors group">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest border border-outline-variant/50 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Q3_Brand_Guidelines.pdf</p>
+<p class="text-xs text-on-surface-variant">Uploaded by Sarah J. • 2.4 MB</p>
+</div>
+</div>
+<div class="flex items-center gap-sm opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-primary rounded-full hover:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-sm">visibility</span></button>
+<button class="p-sm text-on-surface-variant hover:text-error rounded-full hover:bg-error-container transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<!-- File Item -->
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-xl p-md flex items-center justify-between hover:bg-surface-variant transition-colors group">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest border border-outline-variant/50 flex items-center justify-center text-on-surface-variant group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">table_view</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Outreach_Targets_v2.csv</p>
+<p class="text-xs text-on-surface-variant">Uploaded by System • 156 KB</p>
+</div>
+</div>
+<div class="flex items-center gap-sm opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-primary rounded-full hover:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-sm">visibility</span></button>
+<button class="p-sm text-on-surface-variant hover:text-error rounded-full hover:bg-error-container transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple tab switching logic for demonstration
+        const tabs = ['overview', 'files', 'chats', 'memory'];
+        
+        tabs.forEach(tab => {
+            const tabBtn = document.getElementById(`tab-${tab}`);
+            if(tabBtn) {
+                tabBtn.addEventListener('click', () => {
+                    // Reset all tabs
+                    tabs.forEach(t => {
+                        const btn = document.getElementById(`tab-${t}`);
+                        const content = document.getElementById(`content-${t}`);
+                        if(btn) {
+                            btn.className = "py-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all px-sm";
+                        }
+                        if(content) {
+                            content.classList.add('hidden');
+                            content.classList.remove('flex', 'grid');
+                        }
+                    });
+
+                    // Set active tab
+                    tabBtn.className = "py-md text-primary font-bold border-b-2 border-primary";
+                    const activeContent = document.getElementById(`content-${tab}`);
+                    if(activeContent) {
+                        activeContent.classList.remove('hidden');
+                        if(tab === 'overview') {
+                            activeContent.classList.add('flex'); // Adjust based on layout needs
+                            // Need to handle the parent grid if showing overview, simplified here
+                            document.querySelector('.xl\\:col-span-2').parentElement.style.display = 'grid';
+                        } else {
+                            activeContent.classList.add('flex');
+                            document.querySelector('.xl\\:col-span-2').parentElement.style.display = 'block'; // Hide grid for other tabs
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body></html>

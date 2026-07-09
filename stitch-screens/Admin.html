@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aria - Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-container": "#b0aef9",
+                      "on-secondary": "#2a276a",
+                      "on-tertiary-fixed-variant": "#7b2f00",
+                      "on-background": "#e4e1ee",
+                      "on-error": "#690005",
+                      "on-surface": "#e4e1ee",
+                      "error-container": "#93000a",
+                      "primary-container": "#4f46e5",
+                      "tertiary-fixed-dim": "#ffb695",
+                      "error": "#ffb4ab",
+                      "surface-bright": "#393842",
+                      "surface-container-high": "#2a2933",
+                      "on-primary": "#1d00a5",
+                      "on-secondary-fixed": "#140f54",
+                      "on-tertiary-container": "#ffd2be",
+                      "tertiary-container": "#a44100",
+                      "tertiary-fixed": "#ffdbcc",
+                      "tertiary": "#ffb695",
+                      "surface-tint": "#c3c0ff",
+                      "on-error-container": "#ffdad6",
+                      "secondary-container": "#413f82",
+                      "surface-variant": "#35343e",
+                      "surface-container-low": "#1b1b24",
+                      "on-primary-fixed": "#0f0069",
+                      "outline-variant": "#464555",
+                      "surface-container-lowest": "#0e0d16",
+                      "on-tertiary-fixed": "#351000",
+                      "primary-fixed": "#e2dfff",
+                      "surface-container-highest": "#35343e",
+                      "on-surface-variant": "#c7c4d8",
+                      "on-primary-container": "#dad7ff",
+                      "inverse-surface": "#e4e1ee",
+                      "on-tertiary": "#571f00",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "background": "#13121b",
+                      "inverse-on-surface": "#302f39",
+                      "on-secondary-fixed-variant": "#413f82",
+                      "on-primary-fixed-variant": "#3323cc",
+                      "secondary-fixed": "#e2dfff",
+                      "primary": "#c3c0ff",
+                      "inverse-primary": "#4d44e3",
+                      "surface-dim": "#13121b",
+                      "surface": "#13121b",
+                      "surface-container": "#1f1f28",
+                      "outline": "#918fa1",
+                      "secondary": "#c3c0ff",
+                      "secondary-fixed-dim": "#c3c0ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "unit": "4px",
+                      "lg": "24px",
+                      "xxl": "48px",
+                      "gutter": "24px",
+                      "margin": "32px",
+                      "md": "16px",
+                      "sm": "8px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "display-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-base": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "section-label": [
+                              "Inter"
+                      ],
+                      "display-md-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "display-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-lg": [
+                              "30px",
+                              {
+                                      "lineHeight": "38px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-base": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-label": [
+                              "13px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-md-mobile": [
+                              "22px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+        }
+        /* Custom scrollbar for dark mode */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: theme('colors.surface-container');
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.outline-variant');
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: theme('colors.outline');
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-container-low text-primary dark:text-primary font-body-base text-body-base fixed left-0 top-0 h-screen w-64 border-r border-outline-variant dark:border-outline-variant z-20 flex flex-col p-lg overflow-y-auto">
+<!-- Header -->
+<div class="flex items-center gap-md mb-xl">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A stylized 3D rendered avatar of a friendly but professional robot mascot named Aria. The robot has a smooth, glossy pastel finish in soft primary colors, set against a dark premium UI background. Lighting is studio quality, emphasizing the sleek, modern design." src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+<div>
+<h1 class="font-display-md text-display-md font-bold text-on-surface dark:text-on-surface">Aria</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Premium AI Workspace</p>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full py-sm px-md mb-lg rounded-full bg-primary-container text-on-primary-container font-label-md hover:bg-inverse-primary transition-colors flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+            New chat
+        </button>
+<!-- Main Nav -->
+<div class="flex flex-col gap-sm flex-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-label-md">Projects</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">smart_toy</span>
+<span class="font-label-md">Agents</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">book_2</span>
+<span class="font-label-md">Knowledge</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-label-md">Memory</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-label-md">Reports</span>
+</a>
+<!-- Active Tab -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-xl active:scale-[0.98] transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">admin_panel_settings</span>
+<span class="font-label-md font-bold">Admin</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md">Settings</span>
+</a>
+</div>
+<!-- Footer Nav -->
+<div class="mt-auto pt-lg border-t border-outline-variant flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-label-md">Profile</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">dark_mode</span>
+<span class="font-label-md">Theme</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md">Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 ml-64 flex flex-col h-screen overflow-hidden bg-background">
+<!-- TopAppBar -->
+<header class="bg-surface dark:bg-surface text-primary dark:text-primary full-width sticky top-0 z-10">
+<div class="flex justify-between items-center w-full px-xl py-lg max-w-[1150px] mx-auto">
+<div class="hidden">
+<!-- Brand logo hidden as per spec -->
+<span class="font-display-md text-display-md font-bold">Aria</span>
+</div>
+<div class="flex-1">
+<!-- Search bar hidden -->
+<h2 class="font-display-md text-display-md text-on-surface">System Admin</h2>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-all active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-all active:opacity-80">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<button class="font-label-md px-4 py-2 rounded-full border border-outline-variant text-on-surface hover:bg-surface-container-high transition-all">
+                        Export
+                    </button>
+<button class="font-label-md px-4 py-2 rounded-full bg-primary-container text-on-primary-container hover:opacity-90 transition-opacity">
+                        Share
+                    </button>
+</div>
+</div>
+</header>
+<!-- Scrollable Canvas -->
+<div class="flex-1 overflow-y-auto p-xl">
+<div class="max-w-[1150px] mx-auto flex flex-col gap-xl">
+<!-- Metrics Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+<!-- Card 1: Unresolved Errors -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-sm relative overflow-hidden">
+<div class="absolute top-0 right-0 w-24 h-24 bg-error-container opacity-10 rounded-bl-full"></div>
+<div class="flex justify-between items-start">
+<span class="font-section-label text-on-surface-variant uppercase tracking-wider">Unresolved Errors</span>
+<span class="material-symbols-outlined text-error">warning</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface mt-sm">24</div>
+<div class="flex items-center gap-1 text-error text-body-sm mt-auto pt-sm">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span>+12% vs last hour</span>
+</div>
+</div>
+<!-- Card 2: Failed Ingestions -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="font-section-label text-on-surface-variant uppercase tracking-wider">Failed Ingestions</span>
+<span class="material-symbols-outlined text-tertiary">data_alert</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface mt-sm">7</div>
+<div class="flex items-center gap-1 text-on-surface-variant text-body-sm mt-auto pt-sm">
+<span class="material-symbols-outlined text-[16px]">horizontal_rule</span>
+<span>Stable</span>
+</div>
+</div>
+<!-- Card 3: Errors last 200 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="font-section-label text-on-surface-variant uppercase tracking-wider">Error Rate (200 reqs)</span>
+<span class="material-symbols-outlined text-primary">speed</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface mt-sm">3.5%</div>
+<div class="w-full h-1 bg-surface-container-highest rounded-full mt-auto mb-1 overflow-hidden">
+<div class="h-full bg-primary w-[3.5%] rounded-full"></div>
+</div>
+</div>
+<!-- Card 4: Negative Feedback -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="font-section-label text-on-surface-variant uppercase tracking-wider">Negative Feedback</span>
+<span class="material-symbols-outlined text-outline">thumb_down</span>
+</div>
+<div class="font-display-lg text-display-lg text-on-surface mt-sm">12</div>
+<div class="flex items-center gap-1 text-primary text-body-sm mt-auto pt-sm">
+<span class="material-symbols-outlined text-[16px]">trending_down</span>
+<span>-5% this week</span>
+</div>
+</div>
+</section>
+<!-- Complex Layout: Error Log & Feedback -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Error Log Table (Span 2) -->
+<div class="lg:col-span-2 bg-surface-container-low border border-outline-variant rounded-xl flex flex-col">
+<div class="p-lg border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-display-md text-display-md text-on-surface text-[20px]">System Error Log</h3>
+<label class="flex items-center gap-sm cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer sr-only" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-container-highest rounded-full peer-checked:bg-primary-container transition-colors"></div>
+<div class="absolute left-1 top-1 w-3 h-3 bg-on-surface rounded-full transition-transform peer-checked:translate-x-5 peer-checked:bg-on-primary-container"></div>
+</div>
+<span class="font-body-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Show resolved</span>
+</label>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container/50">
+<th class="p-md font-section-label text-on-surface-variant font-medium">Time</th>
+<th class="p-md font-section-label text-on-surface-variant font-medium">Area</th>
+<th class="p-md font-section-label text-on-surface-variant font-medium">Category</th>
+<th class="p-md font-section-label text-on-surface-variant font-medium">Message</th>
+<th class="p-md font-section-label text-on-surface-variant font-medium">Trace ID</th>
+<th class="p-md font-section-label text-on-surface-variant font-medium text-right">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-outline-variant hover:bg-surface-container transition-colors group">
+<td class="p-md font-body-sm text-on-surface-variant whitespace-nowrap">10:42 AM</td>
+<td class="p-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-container-highest text-on-surface text-[12px] font-medium border border-outline-variant">
+                                                Memory
+                                            </span>
+</td>
+<td class="p-md font-body-sm text-error">Timeout</td>
+<td class="p-md font-body-sm text-on-surface max-w-[200px] truncate" title="Vector DB query timeout after 5000ms">Vector DB query timeout after 5000ms</td>
+<td class="p-md font-body-sm text-on-surface-variant font-mono text-[12px]">tr_8f92a1b</td>
+<td class="p-md text-right">
+<button class="font-label-md text-primary hover:text-primary-fixed transition-colors opacity-0 group-hover:opacity-100">Resolve</button>
+</td>
+</tr>
+<tr class="border-b border-outline-variant hover:bg-surface-container transition-colors group">
+<td class="p-md font-body-sm text-on-surface-variant whitespace-nowrap">10:15 AM</td>
+<td class="p-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-container-highest text-on-surface text-[12px] font-medium border border-outline-variant">
+                                                Agents
+                                            </span>
+</td>
+<td class="p-md font-body-sm text-tertiary">API Error</td>
+<td class="p-md font-body-sm text-on-surface max-w-[200px] truncate" title="LLM Provider returned 502 Bad Gateway">LLM Provider returned 502 Bad Gateway</td>
+<td class="p-md font-body-sm text-on-surface-variant font-mono text-[12px]">tr_4c29d8e</td>
+<td class="p-md text-right">
+<button class="font-label-md text-primary hover:text-primary-fixed transition-colors opacity-0 group-hover:opacity-100">Resolve</button>
+</td>
+</tr>
+<tr class="border-b border-outline-variant hover:bg-surface-container transition-colors group">
+<td class="p-md font-body-sm text-on-surface-variant whitespace-nowrap">09:30 AM</td>
+<td class="p-md">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-surface-container-highest text-on-surface text-[12px] font-medium border border-outline-variant">
+                                                Knowledge
+                                            </span>
+</td>
+<td class="p-md font-body-sm text-error">Ingestion</td>
+<td class="p-md font-body-sm text-on-surface max-w-[200px] truncate" title="Failed to parse PDF document structure">Failed to parse PDF document structure</td>
+<td class="p-md font-body-sm text-on-surface-variant font-mono text-[12px]">tr_1a55f9c</td>
+<td class="p-md text-right">
+<button class="font-label-md text-primary hover:text-primary-fixed transition-colors opacity-0 group-hover:opacity-100">Resolve</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-md text-center border-t border-outline-variant">
+<button class="font-label-md text-on-surface-variant hover:text-on-surface transition-colors">View All Logs</button>
+</div>
+</div>
+<!-- Feedback Stream (Span 1) -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl flex flex-col h-[500px]">
+<div class="p-lg border-b border-outline-variant">
+<h3 class="font-display-md text-display-md text-on-surface text-[20px]">Recent User Feedback</h3>
+</div>
+<div class="flex-1 overflow-y-auto p-md flex flex-col gap-md">
+<!-- Feedback Item -->
+<div class="p-md bg-surface-container rounded-lg border border-outline-variant/50">
+</div></div></div></div></div></div></main></body></html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login - Aria</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-container": "#b0aef9",
+                      "on-secondary": "#2a276a",
+                      "on-tertiary-fixed-variant": "#7b2f00",
+                      "on-background": "#e4e1ee",
+                      "on-error": "#690005",
+                      "on-surface": "#e4e1ee",
+                      "error-container": "#93000a",
+                      "primary-container": "#4f46e5",
+                      "tertiary-fixed-dim": "#ffb695",
+                      "error": "#ffb4ab",
+                      "surface-bright": "#393842",
+                      "surface-container-high": "#2a2933",
+                      "on-primary": "#1d00a5",
+                      "on-secondary-fixed": "#140f54",
+                      "on-tertiary-container": "#ffd2be",
+                      "tertiary-container": "#a44100",
+                      "tertiary-fixed": "#ffdbcc",
+                      "tertiary": "#ffb695",
+                      "surface-tint": "#c3c0ff",
+                      "on-error-container": "#ffdad6",
+                      "secondary-container": "#413f82",
+                      "surface-variant": "#35343e",
+                      "surface-container-low": "#1b1b24",
+                      "on-primary-fixed": "#0f0069",
+                      "outline-variant": "#464555",
+                      "surface-container-lowest": "#0e0d16",
+                      "on-tertiary-fixed": "#351000",
+                      "primary-fixed": "#e2dfff",
+                      "surface-container-highest": "#35343e",
+                      "on-surface-variant": "#c7c4d8",
+                      "on-primary-container": "#dad7ff",
+                      "inverse-surface": "#e4e1ee",
+                      "on-tertiary": "#571f00",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "background": "#13121b",
+                      "inverse-on-surface": "#302f39",
+                      "on-secondary-fixed-variant": "#413f82",
+                      "on-primary-fixed-variant": "#3323cc",
+                      "secondary-fixed": "#e2dfff",
+                      "primary": "#c3c0ff",
+                      "inverse-primary": "#4d44e3",
+                      "surface-dim": "#13121b",
+                      "surface": "#13121b",
+                      "surface-container": "#1f1f28",
+                      "outline": "#918fa1",
+                      "secondary": "#c3c0ff",
+                      "secondary-fixed-dim": "#c3c0ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "unit": "4px",
+                      "lg": "24px",
+                      "xxl": "48px",
+                      "gutter": "24px",
+                      "margin": "32px",
+                      "md": "16px",
+                      "sm": "8px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "display-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-base": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "section-label": [
+                              "Inter"
+                      ],
+                      "display-md-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "display-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-lg": [
+                              "30px",
+                              {
+                                      "lineHeight": "38px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-base": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-label": [
+                              "13px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-md-mobile": [
+                              "22px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        /* Ambient subtle gradient for the background */
+        body {
+            background-image: radial-gradient(circle at top right, rgba(79, 70, 229, 0.15), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(65, 63, 130, 0.1), transparent 40%);
+            background-color: theme('colors.background');
+            background-attachment: fixed;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-lg font-body-base text-on-surface">
+<!-- Login Card Canvas -->
+<div class="w-full max-w-md bg-surface-container border border-outline-variant rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] p-xl relative overflow-hidden backdrop-blur-md">
+<!-- Subtle glow overlay on card -->
+<div class="absolute -top-24 -right-24 w-48 h-48 bg-primary-container rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+<!-- Header / Identity -->
+<div class="flex flex-col items-center mb-xl text-center relative z-10">
+<div class="w-20 h-20 bg-surface-container-highest rounded-full flex items-center justify-center mb-md border border-outline-variant shadow-sm relative group overflow-hidden">
+<img alt="Aria AI Robot Mascot" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A glossy, friendly 3D pastel robot mascot avatar, modern AI assistant style, set against a dark premium backdrop with subtle edge lighting, serious yet approachable corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9A4eXwVzbKxx-TIcn-uATpbIq0Mbt-qukkSqzCktWOwJoVVNSm2KrStpK3susYrp5hevwqiVRKjpNlpagGukD5nG2ppB-Bs3DojaeFF-YqsTnndKVuE9BmoA9r2uXShIJXA_yQaVJ95pfKQ-h8MpsienmZ4SqQ_7Zvdj3QBjPMliofjQID0FkfyrrEdPv8TejuWyPsAdLX_I-x0nWfVY8OHmeyH9q5-wG-KPQTkEp9SjntY6fZ9Bh"/>
+<div class="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-primary/10 mix-blend-overlay rounded-full"></div>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface mb-sm tracking-tight">Welcome to Aria</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Sign in to your premium AI workspace.</p>
+</div>
+<!-- Form -->
+<form action="#" class="space-y-lg relative z-10" method="POST">
+<!-- Email Input -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface mb-sm" for="email">Email Address</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-size: 20px;">mail</span>
+</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-[10px] py-md pl-[44px] pr-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200" id="email" name="email" placeholder="name@company.com" required="" type="email"/>
+</div>
+</div>
+<!-- Password Input -->
+<div>
+<div class="flex items-center justify-between mb-sm">
+<label class="block font-label-md text-label-md text-on-surface" for="password">Password</label>
+<a class="font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors duration-200" href="#">Forgot?</a>
+</div>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-size: 20px;">lock</span>
+</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-[10px] py-md pl-[44px] pr-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+</div>
+</div>
+<!-- Actions -->
+<div class="pt-sm">
+<button class="w-full bg-primary-container text-on-primary-container font-label-md text-label-md rounded-full py-md px-lg flex items-center justify-center gap-sm hover:bg-inverse-primary hover:text-white transition-all duration-200 shadow-[0_4px_12px_rgba(79,70,229,0.2)] active:scale-[0.98]" type="submit">
+<span>Sign In</span>
+<span class="material-symbols-outlined" style="font-size: 18px;">arrow_forward</span>
+</button>
+</div>
+</form>
+<!-- Footer / Toggle -->
+<div class="mt-xl text-center relative z-10">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                New to Aria? 
+                <a class="text-primary hover:text-primary-fixed font-medium transition-colors duration-200 underline decoration-transparent hover:decoration-primary-fixed underline-offset-4" href="#">Create an account</a>
+</p>
+</div>
+</div>
+</body></html>

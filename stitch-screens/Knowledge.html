@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aria - Knowledge</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-container": "#b0aef9",
+                        "on-secondary": "#2a276a",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "on-background": "#e4e1ee",
+                        "on-error": "#690005",
+                        "on-surface": "#e4e1ee",
+                        "error-container": "#93000a",
+                        "primary-container": "#4f46e5",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#393842",
+                        "surface-container-high": "#2a2933",
+                        "on-primary": "#1d00a5",
+                        "on-secondary-fixed": "#140f54",
+                        "on-tertiary-container": "#ffd2be",
+                        "tertiary-container": "#a44100",
+                        "tertiary-fixed": "#ffdbcc",
+                        "tertiary": "#ffb695",
+                        "surface-tint": "#c3c0ff",
+                        "on-error-container": "#ffdad6",
+                        "secondary-container": "#413f82",
+                        "surface-variant": "#35343e",
+                        "surface-container-low": "#1b1b24",
+                        "on-primary-fixed": "#0f0069",
+                        "outline-variant": "#464555",
+                        "surface-container-lowest": "#0e0d16",
+                        "on-tertiary-fixed": "#351000",
+                        "primary-fixed": "#e2dfff",
+                        "surface-container-highest": "#35343e",
+                        "on-surface-variant": "#c7c4d8",
+                        "on-primary-container": "#dad7ff",
+                        "inverse-surface": "#e4e1ee",
+                        "on-tertiary": "#571f00",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "background": "#13121b",
+                        "inverse-on-surface": "#302f39",
+                        "on-secondary-fixed-variant": "#413f82",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "secondary-fixed": "#e2dfff",
+                        "primary": "#c3c0ff",
+                        "inverse-primary": "#4d44e3",
+                        "surface-dim": "#13121b",
+                        "surface": "#13121b",
+                        "surface-container": "#1f1f28",
+                        "outline": "#918fa1",
+                        "secondary": "#c3c0ff",
+                        "secondary-fixed-dim": "#c3c0ff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "xs": "4px",
+                        "unit": "4px",
+                        "lg": "24px",
+                        "xxl": "48px",
+                        "gutter": "24px",
+                        "margin": "32px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "xl": "32px"
+                    },
+                    fontFamily: {
+                        "display-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-base": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "section-label": ["Inter"],
+                        "display-md-mobile": ["Inter"]
+                    },
+                    fontSize: {
+                        "display-md": ["24px", { lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "label-md": ["14px", { lineHeight: "20px", fontWeight: "500" }],
+                        "display-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.02em", fontWeight: "600" }],
+                        "body-base": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+                        "body-sm": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+                        "section-label": ["13px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+                        "display-md-mobile": ["22px", { lineHeight: "28px", fontWeight: "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .shimmer {
+            background: linear-gradient(90deg, #1f1f28 25%, #2a2933 50%, #1f1f28 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-base h-screen overflow-hidden flex">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-container-low fixed left-0 top-0 h-screen w-64 border-r border-outline-variant dark:border-outline-variant z-50 flex flex-col p-lg overflow-y-auto">
+<div class="flex items-center gap-md mb-xl">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="A premium 3D rendered avatar of a glossy, futuristic robot mascot. It has a friendly, optimistic expression, colored in soft pastel metallic tones against a sleek dark background. The lighting is soft and studio-quality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBaWFnszk90MfZ6tw-KIMynEGcMzk4L1_7D5bKNu-KarTivowKNHX4WK9uaw78ZlitVreMle0YKFf2wu5kON-w7QR1zP3TKNLOkQHywiqIx1CzNuR3AJNGfg7HrVO3N59qa4FcSM6nvYks22iKX4BHw0rv98xkuyPQpOqO1wjhxvVgpXOC2rkloiUItTmMxnPhdvXOTYPvgW0p5GdUQUpQupdIQ7IrZAsuDArxRLMPMrXRzPTWerKC"/>
+<div>
+<h1 class="font-display-md text-display-md font-bold text-on-surface dark:text-on-surface">Aria</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Premium AI Workspace</p>
+</div>
+</div>
+<button class="bg-primary text-on-primary font-label-md text-label-md rounded-full py-sm px-lg mb-xl hover:bg-primary-fixed transition-colors duration-200">
+            + New chat
+        </button>
+<div class="flex-1 flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span>Projects</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span>Agents</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-xl transition-transform duration-150 active:scale-[0.98]" href="#">
+<span class="material-symbols-outlined" data-icon="book_2" style="font-variation-settings: 'FILL' 1;">book_2</span>
+<span class="font-bold">Knowledge</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span>Memory</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span>Reports</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="admin_panel_settings">admin_panel_settings</span>
+<span>Admin</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</div>
+<div class="mt-auto pt-xl border-t border-outline-variant flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span>Profile</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+<span>Theme</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="ml-64 flex-1 h-screen overflow-y-auto flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-transparent full-width sticky top-0 z-40 bg-surface dark:bg-surface">
+<div class="flex justify-between items-center w-full px-xl py-lg max-w-[1150px] mx-auto">
+<div class="flex items-center gap-md">
+<!-- Title usually goes here, but it's hidden per spec, using generic header text -->
+<h2 class="font-display-md text-display-md font-bold text-on-surface">Knowledge Base</h2>
+</div>
+<div class="flex items-center gap-md">
+<button class="flex items-center gap-sm px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-all rounded-full font-label-md text-label-md">
+                        Share
+                    </button>
+<button class="flex items-center gap-sm px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-all rounded-full font-label-md text-label-md border border-outline-variant">
+                        Export
+                    </button>
+<button class="text-on-surface-variant hover:bg-surface-container-high transition-all p-sm rounded-full">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container-high transition-all p-sm rounded-full">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<img class="w-8 h-8 rounded-full object-cover border border-outline-variant ml-sm" data-alt="User Avatar, a small, subtle 3d stylized portrait of a user in the same dark, premium corporate modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHvt26YPP_9Defbn1XthRAlHwsKIYjf_o_29qzTwgXji-dgdV4dl8sMNnYwqgCAhWB4dW3xgTLC6-puRNCfB6P3g3EA_HvLrvk-5KZnSsNQYDlhKDlki-cPj1Nw0zzfhtUI094fUzK08rPNka29bcjcFJxPjPFj97VLKzDAQwpmjBHAYDSSDGEwUiqlbMGPC094f2wffWAG3zd-RmquxdWEVsrXAep44mFUtNhB4rzUDR31DafC6Zt"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-xl max-w-[1150px] mx-auto w-full flex flex-col gap-xl">
+<!-- Drag & Drop Zone -->
+<div class="w-full bg-surface-container border-2 border-dashed border-outline-variant rounded-xl p-xxl flex flex-col items-center justify-center text-center gap-md hover:border-primary transition-colors duration-300 cursor-pointer group">
+<div class="w-16 h-16 rounded-full bg-surface-variant flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors duration-300">
+<span class="material-symbols-outlined text-3xl" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<div>
+<h3 class="font-display-md text-display-md text-on-surface mb-xs">Drop files here to upload</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Support for PDF, TXT, DOCX, and CSV up to 50MB</p>
+</div>
+<button class="mt-sm bg-surface-variant text-on-surface font-label-md text-label-md rounded-full py-sm px-lg border border-outline-variant hover:bg-surface-container-high transition-colors">
+                    Browse Files
+                </button>
+</div>
+<!-- Documents List -->
+<div class="bg-surface-container-low rounded-xl border border-outline-variant overflow-hidden">
+<div class="px-lg py-md border-b border-outline-variant flex justify-between items-center bg-surface-container">
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">Documents (4)</h3>
+<div class="flex items-center gap-sm">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" data-icon="search">search</span>
+<input class="bg-surface border border-outline-variant rounded-full pl-lg pr-md py-sm text-body-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none w-48 transition-all" placeholder="Search..." type="text"/>
+</div>
+<button class="text-on-surface-variant p-sm hover:bg-surface-variant rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+</div>
+<div class="flex flex-col">
+<!-- Row 1: Indexed -->
+<div class="flex items-center px-lg py-md hover:bg-surface-variant transition-colors border-b border-outline-variant gap-lg group">
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant shrink-0 text-primary">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<h4 class="font-label-md text-label-md text-on-surface truncate">Q4_Financial_Report_2023.pdf</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex gap-sm items-center mt-xs">
+<span>PDF</span> • <span>2.4 MB</span> • <span>124 Chunks</span> • <span>2 hrs ago</span>
+</p>
+</div>
+<div class="flex items-center gap-lg shrink-0">
+<span class="px-sm py-xs rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800 font-section-label text-section-label flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                Indexed
+                            </span>
+<div class="flex gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-container"><span class="material-symbols-outlined text-sm" data-icon="delete">delete</span></button>
+</div>
+</div>
+</div>
+<!-- Row 2: Processing -->
+<div class="flex items-center px-lg py-md hover:bg-surface-variant transition-colors border-b border-outline-variant gap-lg group">
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant shrink-0 text-secondary">
+<span class="material-symbols-outlined" data-icon="article">article</span>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<h4 class="font-label-md text-label-md text-on-surface truncate">Product_Requirements_v2.docx</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex gap-sm items-center mt-xs">
+<span>DOCX</span> • <span>845 KB</span> • <span>Processing...</span> • <span>Just now</span>
+</p>
+</div>
+<div class="flex items-center gap-lg shrink-0">
+<span class="px-sm py-xs rounded-full bg-amber-900/30 text-amber-400 border border-amber-800 font-section-label text-section-label flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                Processing
+                            </span>
+<div class="flex gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-container"><span class="material-symbols-outlined text-sm" data-icon="delete">delete</span></button>
+</div>
+</div>
+</div>
+<!-- Row 3: Pending -->
+<div class="flex items-center px-lg py-md hover:bg-surface-variant transition-colors border-b border-outline-variant gap-lg group">
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant shrink-0 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="text_snippet">text_snippet</span>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<h4 class="font-label-md text-label-md text-on-surface truncate">Customer_Feedback_Raw.txt</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex gap-sm items-center mt-xs">
+<span>TXT</span> • <span>12 KB</span> • <span>Waiting in queue</span> • <span>5 mins ago</span>
+</p>
+</div>
+<div class="flex items-center gap-lg shrink-0">
+<span class="px-sm py-xs rounded-full bg-surface-container-highest text-on-surface-variant border border-outline-variant font-section-label text-section-label flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant"></span>
+                                Pending
+                            </span>
+<div class="flex gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-on-surface rounded-full hover:bg-surface-container"><span class="material-symbols-outlined text-sm" data-icon="delete">delete</span></button>
+</div>
+</div>
+</div>
+<!-- Row 4: Failed -->
+<div class="flex items-center px-lg py-md hover:bg-surface-variant transition-colors gap-lg group">
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant shrink-0 text-error">
+<span class="material-symbols-outlined" data-icon="dataset">dataset</span>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<h4 class="font-label-md text-label-md text-on-surface truncate">Employee_Directory_Export.csv</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex gap-sm items-center mt-xs text-error">
+<span>CSV</span> • <span>Error: Parsing failed</span> • <span>1 day ago</span>
+</p>
+</div>
+<div class="flex items-center gap-lg shrink-0">
+<span class="px-sm py-xs rounded-full bg-error-container/20 text-error border border-error/30 font-section-label text-section-label flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                Failed
+                            </span>
+<div class="flex gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-sm text-on-surface-variant hover:text-primary rounded-full hover:bg-surface-container"><span class="material-symbols-outlined text-sm" data-icon="refresh">refresh</span></button>
+<button class="p-sm text-on-surface-variant hover:text-error rounded-full hover:bg-surface-container"><span class="material-symbols-outlined text-sm" data-icon="delete">delete</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

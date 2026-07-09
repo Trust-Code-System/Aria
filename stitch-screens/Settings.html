@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aria - Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-container": "#b0aef9",
+                    "on-secondary": "#2a276a",
+                    "on-tertiary-fixed-variant": "#7b2f00",
+                    "on-background": "#e4e1ee",
+                    "on-error": "#690005",
+                    "on-surface": "#e4e1ee",
+                    "error-container": "#93000a",
+                    "primary-container": "#4f46e5",
+                    "tertiary-fixed-dim": "#ffb695",
+                    "error": "#ffb4ab",
+                    "surface-bright": "#393842",
+                    "surface-container-high": "#2a2933",
+                    "on-primary": "#1d00a5",
+                    "on-secondary-fixed": "#140f54",
+                    "on-tertiary-container": "#ffd2be",
+                    "tertiary-container": "#a44100",
+                    "tertiary-fixed": "#ffdbcc",
+                    "tertiary": "#ffb695",
+                    "surface-tint": "#c3c0ff",
+                    "on-error-container": "#ffdad6",
+                    "secondary-container": "#413f82",
+                    "surface-variant": "#35343e",
+                    "surface-container-low": "#1b1b24",
+                    "on-primary-fixed": "#0f0069",
+                    "outline-variant": "#464555",
+                    "surface-container-lowest": "#0e0d16",
+                    "on-tertiary-fixed": "#351000",
+                    "primary-fixed": "#e2dfff",
+                    "surface-container-highest": "#35343e",
+                    "on-surface-variant": "#c7c4d8",
+                    "on-primary-container": "#dad7ff",
+                    "inverse-surface": "#e4e1ee",
+                    "on-tertiary": "#571f00",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "background": "#13121b",
+                    "inverse-on-surface": "#302f39",
+                    "on-secondary-fixed-variant": "#413f82",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "secondary-fixed": "#e2dfff",
+                    "primary": "#c3c0ff",
+                    "inverse-primary": "#4d44e3",
+                    "surface-dim": "#13121b",
+                    "surface": "#13121b",
+                    "surface-container": "#1f1f28",
+                    "outline": "#918fa1",
+                    "secondary": "#c3c0ff",
+                    "secondary-fixed-dim": "#c3c0ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "unit": "4px",
+                    "lg": "24px",
+                    "xxl": "48px",
+                    "gutter": "24px",
+                    "margin": "32px",
+                    "md": "16px",
+                    "sm": "8px",
+                    "xl": "32px"
+            },
+            "fontFamily": {
+                    "display-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "body-base": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "section-label": ["Inter"],
+                    "display-md-mobile": ["Inter"]
+            },
+            "fontSize": {
+                    "display-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "display-lg": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-base": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "section-label": ["13px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "display-md-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-base min-h-screen flex selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Shared Component) -->
+<aside class="bg-surface-container-low dark:bg-surface-container-low fixed left-0 top-0 h-screen w-64 border-r border-outline-variant dark:border-outline-variant flex flex-col p-lg overflow-y-auto z-20">
+<!-- Header -->
+<div class="flex items-center gap-md mb-xl px-sm">
+<div class="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant shadow-sm shrink-0">
+<img alt="Aria AI Robot Mascot" class="w-full h-full object-cover" data-alt="A glossy 3D pastel robot mascot head, futuristic but friendly, softly glowing against a dark background in a premium SaaS context." src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+<div class="flex flex-col">
+<span class="font-display-md text-display-md font-bold text-on-surface dark:text-on-surface tracking-tight">Aria</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant leading-none mt-1">Premium AI Workspace</span>
+</div>
+</div>
+<!-- CTA -->
+<button class="mb-xl w-full flex items-center justify-center gap-sm bg-primary-container hover:bg-inverse-primary text-on-primary-container px-md py-sm rounded-xl font-label-md text-label-md transition-colors duration-200">
+<span class="material-symbols-outlined text-[18px]">add</span>
+            + New chat
+        </button>
+<!-- Main Navigation -->
+<nav class="flex-1 flex flex-col gap-sm">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">folder_open</span>
+<span class="font-label-md text-label-md">Projects</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">smart_toy</span>
+<span class="font-label-md text-label-md">Agents</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">book_2</span>
+<span class="font-label-md text-label-md">Knowledge</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">psychology</span>
+<span class="font-label-md text-label-md">Memory</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">assessment</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">admin_panel_settings</span>
+<span class="font-label-md text-label-md">Admin</span>
+</a>
+<!-- Active State -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container rounded-xl transition-transform duration-150 scale-[0.98]" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-label-md text-label-md font-medium">Settings</span>
+</a>
+</nav>
+<!-- Footer Navigation -->
+<div class="mt-auto flex flex-col gap-sm pt-xl border-t border-outline-variant">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">account_circle</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">dark_mode</span>
+<span class="font-label-md text-label-md">Theme</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-variant dark:hover:bg-surface-variant transition-colors duration-200 rounded-xl" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 300;">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-64 flex flex-col min-h-screen bg-background">
+<!-- TopAppBar (Shared Component) -->
+<header class="bg-surface dark:bg-surface full-width sticky top-0 z-10">
+<div class="flex justify-between items-center w-full px-xl py-lg max-w-[1150px] mx-auto">
+<div class="flex items-center gap-md hidden">
+<span class="font-display-md text-display-md font-bold text-primary dark:text-primary tracking-tight">Aria</span>
+</div>
+<!-- Spacer for layout -->
+<div class="flex-1">
+<h1 class="font-display-lg text-display-lg text-on-surface font-semibold tracking-tight">Settings</h1>
+</div>
+<div class="flex items-center gap-md">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:opacity-80">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="px-md py-sm rounded-full border border-outline-variant text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-high transition-all active:opacity-80 ml-sm">
+                        Export
+                    </button>
+<button class="px-md py-sm rounded-full bg-primary-container text-on-primary-container font-label-md text-label-md hover:bg-inverse-primary transition-all active:opacity-80">
+                        Share
+                    </button>
+<div class="w-10 h-10 rounded-full bg-surface-container-highest ml-sm border border-outline-variant overflow-hidden cursor-pointer">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a person, dramatic studio lighting, minimalist dark background, high resolution." src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 w-full px-xl py-lg max-w-[1150px] mx-auto pb-xxl">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Account Card -->
+<section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-md relative overflow-hidden">
+<div class="absolute -right-16 -top-16 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined text-primary">person</span>
+<h2 class="font-display-md text-display-md text-on-surface">Account</h2>
+</div>
+<div class="flex items-center gap-md">
+<div class="w-16 h-16 rounded-full bg-surface-variant border border-outline-variant overflow-hidden">
+<img alt="User Avatar Large" class="w-full h-full object-cover" data-alt="A professional headshot of a person, dramatic studio lighting, minimalist dark background, high resolution." src="https://www.gstatic.com/labs-code/stitch/stitch-placeholder-300x300.svg"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Alex Mercer</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">alex@aria.ai</p>
+</div>
+<button class="ml-auto px-md py-sm border border-outline-variant rounded-full font-label-md text-label-md text-on-surface hover:bg-surface-variant transition-colors">
+                            Edit Profile
+                        </button>
+</div>
+<div class="mt-md space-y-md">
+<div class="flex items-center justify-between">
+<div>
+<p class="font-label-md text-label-md text-on-surface">Plan Tier</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enterprise Plus</p>
+</div>
+<span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full font-section-label text-section-label uppercase tracking-widest">Active</span>
+</div>
+<div class="flex items-center justify-between border-t border-outline-variant pt-md">
+<div>
+<p class="font-label-md text-label-md text-error">Delete Account</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Permanently remove all data</p>
+</div>
+<button class="px-md py-sm bg-error-container text-on-error-container rounded-full font-label-md text-label-md hover:bg-error hover:text-on-error transition-colors">
+                                Confirm
+                            </button>
+</div>
+</div>
+</section>
+<!-- Model Defaults -->
+<section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-md relative">
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined text-tertiary">tune</span>
+<h2 class="font-display-md text-display-md text-on-surface">Model Defaults</h2>
+</div>
+<div class="space-y-lg">
+<div>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-sm">Primary Reasoning Model</label>
+<div class="flex flex-wrap gap-sm">
+<span class="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg font-mono text-sm cursor-pointer border border-primary-container">gpt-4-turbo</span>
+<span class="px-4 py-2 bg-surface-variant text-on-surface-variant rounded-lg font-mono text-sm cursor-pointer border border-outline-variant hover:bg-surface-container-high transition-colors">claude-3-opus</span>
+<span class="px-4 py-2 bg-surface-variant text-on-surface-variant rounded-lg font-mono text-sm cursor-pointer border border-outline-variant hover:bg-surface-container-high transition-colors">gemini-1.5-pro</span>
+</div>
+</div>
+<div>
+<label class="font-label-md text-label-md text-on-surface-variant block mb-sm">Context Window Allocation</label>
+<input class="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="75"/>
+<div class="flex justify-between mt-1">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Standard</span>
+<span class="font-body-sm text-body-sm text-primary">128k Tokens</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-sm">
+<div>
+<p class="font-label-md text-label-md text-on-surface">Auto-fallback</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Switch to fast model on rate limit</p>
+</div>
+<!-- Toggle -->
+<div class="w-12 h-6 bg-primary-container rounded-full relative cursor-pointer">
+<div class="w-5 h-5 bg-on-primary-container rounded-full absolute top-[2px] right-[2px] shadow-sm"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- LLM Providers -->
+<section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-md">
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined text-secondary">cloud</span>
+<h2 class="font-display-md text-display-md text-on-surface">LLM Providers</h2>
+</div>
+<div class="space-y-md">
+<div class="flex items-center justify-between p-md bg-surface-variant rounded-lg border border-outline-variant">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-surface flex items-center justify-center text-on-surface font-mono font-bold text-xs border border-outline-variant">OAI</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">OpenAI API</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">sk-...a9b2</p>
+</div>
+</div>
+<span class="flex items-center gap-xs text-primary font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                                Connected
+                            </span>
+</div>
+<div class="flex items-center justify-between p-md bg-surface-variant rounded-lg border border-outline-variant">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-surface flex items-center justify-center text-on-surface font-mono font-bold text-xs border border-outline-variant">ANT</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Anthropic</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Not configured</p>
+</div>
+</div>
+<button class="px-sm py-1 border border-outline-variant rounded font-label-md text-label-md text-on-surface hover:bg-surface-container-high transition-colors">
+                                Add Key
+                            </button>
+</div>
+<div class="flex items-center justify-between p-md bg-surface-variant/50 rounded-lg border border-outline-variant border-dashed">
+<div class="flex items-center gap-md opacity-60">
+<div class="w-8 h-8 rounded bg-surface flex items-center justify-center text-on-surface font-mono font-bold text-xs border border-outline-variant">GCP</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Google Vertex AI</p>
+</div>
+</div>
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface-variant rounded-full font-section-label text-section-label uppercase tracking-widest">Soon</span>
+</div>
+</div>
+</section>
+<!-- Core Services -->
+<section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-md">
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined text-on-surface">memory</span>
+<h2 class="font-display-md text-display-md text-on-surface">Core Services</h2>
+</div>
+<div class="grid grid-cols-2 gap-md">
+<!-- Service Tile -->
+<div class="p-md rounded-lg border border-outline-variant bg-surface hover:border-primary/50 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors mb-sm">storage</span>
+<p class="font-label-md text-label-md text-on-surface">Vector DB</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Pinecone (US-East)</p>
+</div>
+<!-- Service Tile -->
+<div class="p-md rounded-lg border border-outline-variant bg-surface hover:border-primary/50 transition-colors cursor-pointer group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors mb-sm">search</span>
+<p class="font-label-md text-label-md text-on-surface">Web Search</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Tavily API</p>
+</div>
+<!-- Service Tile -->
+<div class="p-md rounded-lg border border-outline-variant bg-surface hover:border-primary/50 transition-colors cursor-pointer group col-span-2 flex items-center justify-between">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">mic</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Speech-to-Text</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Whisper-v3</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-surface-variant text-on-surface-variant text-xs rounded border border-outline-variant">Default</span>
+</div>
+</div>
+</section>
+<!-- Integrations (Full Width) -->
+<section class="col-span-1 lg:col-span-2 bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col gap-md">
+<div class="flex items-center justify-between mb-sm">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary">extension</span>
+<h2 class="font-display-md text-display-md text-on-surface">Workspace Integrations</h2>
+</div>
+<button class="font-label-md text-label-md text-primary hover:text-primary-container transition-colors flex items-center gap-xs">
+                            Browse Catalog <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-md mt-sm">
+<!-- Tool Tile -->
+<div class="p-md rounded-xl border border-outline-variant bg-surface-variant/30 flex flex-col items-center justify-center gap-sm aspect-square hover:bg-surface-variant transition-colors cursor-pointer relative group">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[28px] text-on-surface">code</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface">GitHub</p>
+<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></span>
+</div>
+<!-- Tool Tile -->
+<div class="p-md rounded-xl border border-outline-variant bg-surface-variant/30 flex flex-col items-center justify-center gap-sm aspect-square hover:bg-surface-variant transition-colors cursor-pointer group">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[28px] text-on-surface">description</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface">Notion</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">Not connected</p>
+</div>
+<!-- Tool Tile -->
+<div class="p-md rounded-xl border border-outline-variant bg-surface-variant/30 flex flex-col items-center justify-center gap-sm aspect-square hover:bg-surface-variant transition-colors cursor-pointer group">
+</div></div></section></div></div></main></body></html>
