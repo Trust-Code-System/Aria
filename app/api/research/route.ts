@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireSessionApi } from "@/lib/auth/guards";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { runResearch, researchProviderAvailable } from "@/lib/ai/research";
 import { apiError, apiOk } from "@/lib/api";
 
@@ -13,6 +14,7 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
+    rateLimit("research", ctx.userId);
     const { query } = schema.parse(await req.json());
     const result = await runResearch(query);
     return apiOk({

@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { createDraft, sendEmail } from "@/lib/connectors/gmail";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { logAudit } from "@/lib/logging/error-log";
 
 export const runtime = "nodejs";
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
+    rateLimit("email", ctx.userId);
     const body = schema.parse(await req.json());
 
     const supabase = createServerSupabase();

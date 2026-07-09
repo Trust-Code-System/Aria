@@ -21,7 +21,7 @@ export default function LoginPage() {
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/dashboard";
+  const next = params.get("next") || "/chat";
   const { error: toastError, success } = useToast();
 
   const [mode, setMode] = React.useState<"signin" | "signup">("signin");
@@ -42,7 +42,7 @@ function LoginInner() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+          options: { emailRedirectTo: `${window.location.origin}/chat` },
         });
         if (error) throw error;
         success("Account created", "You can sign in now.");

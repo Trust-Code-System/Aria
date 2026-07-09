@@ -48,13 +48,17 @@
 `[x]` Done — this file. Kept updated as work proceeds.
 
 ### Group 3 — Human-in-the-Loop Approval System
-`[~]` **Data layer + inbox implemented** (needs migration 0008 applied + an agent runtime to generate approvals).
+`[~]` **Data layer + inbox implemented; decision semantics hardened by Fibo (2026-07-09).**
 - **Done:** `approvals` table with risk levels 0–4 (`supabase/migrations/0008_agent_tasks.sql`),
   `lib/agent/types.ts` (risk ladder), API `GET /api/approvals` + `POST /api/approvals/:id`
   (approve / reject / request_changes, audit-logged, safe_metadata only), Approval Inbox UI
   at `/approvals` (`components/approvals/approvals-client.tsx`), sidebar link.
-- **Missing:** an agent runtime that actually *creates* approvals mid-task; Level-3 admin/2FA
-  step-up; deep-link from an approval to its task/step.
+- **Fibo fixes:** `lib/agent/approval-policy.ts` (pure, 11 tests) is now the single source
+  of truth — only `approved` executes; `changes_requested` no longer runs the action (it
+  skips with a note); Level-4 steps are blocked outright (never approvable — enforced in
+  runtime, API, and UI); approving from the inbox auto-resumes the task.
+- **Missing:** Level-3 admin/2FA step-up; approval expiry job; deep-link from an approval
+  to its task/step; revise-and-retry flow for request_changes.
 - **Priority:** MVP · **Difficulty:** High
 
 ### Group 4 — Background Task Runner
@@ -247,3 +251,104 @@ handling). It is NOT yet an agentic task/approval OS — those groups remain `[ 
 > dashboard at /tasks, and an Approval Inbox at /approvals, reusing the existing
 > error-handling and RLS patterns. Wire chat to create a task when a request needs
 > multi-step execution."
+
+---
+
+## Session 3 — Fibo independent audit (2026-07-09)
+
+Full cross-check of the Claude Opus 4.8 / ChatGPT 5.5 work against the Personal AI OS
+spec. Full findings in [`FIBO_AUDIT_REPORT.md`](./FIBO_AUDIT_REPORT.md).
+
+### Fixed (safety bugs)
+- **"Request changes" executed the action** — runtime treated `changes_requested` like
+  `approved`. Now it skips the step with a note. (`lib/agent/runtime.ts`)
+- **Level-4 "Blocked" actions were approvable** — now blocked at three layers: runtime
+  never creates the approval, the API refuses `approve`, the UI shows "Blocked by policy".
+  (`lib/agent/approval-policy.ts` new + runtime + `app/api/approvals/[id]/route.ts` +
+  `components/approvals/approvals-client.tsx`)
+- **Approval Inbox didn't resume tasks** — approving stamped the task `running` with
+  nothing running. Now approve → task `queued` → auto-resume from the inbox too.
+
+### Cleaned
+- Deleted 12 dead/fake template files: `components/dashboard/{live-feed,map-view,
+  job-queue,performance-chart,stats-row,system-status,workflow-timeline}.tsx`,
+  `components/{Shader,ThreeJSViewer,Sidebar,TopBar}.tsx`, `components/ui/glass-card.tsx`
+  (all unused; fake demo data violated the no-fake-features standard).
+- Removed `three` + `@types/three` production deps (only the deleted files used them).
+- Blanked the personal email default in `.env.example`.
+
+### Added
+- `lib/agent/approval-policy.ts` + `tests/approval-policy.test.ts` (11 tests; 37 total).
+- Docs: `docs/APPROVAL_SYSTEM.md`, `docs/MEMORY_SYSTEM.md`, `docs/INTEGRATIONS.md`,
+  `docs/ADMIN_DASHBOARD.md`, `docs/VOICE_SYSTEM.md`, `docs/ROADMAP.md`.
+
+### Verified
+`npm run typecheck` ✅ · `npm run lint` ✅ (2 pre-existing font warnings) ·
+`npm test` **37/37 ✅** · `npm run build` ✅ (exit 0).
+
+### Session 3b — Fibo build pass (same day, continued on user request)
+
+- **Real execution (first real action):** `lib/agent/execute.ts` — approved email-shaped
+  steps now compose a structured draft and, when Gmail is connected, **create a real Gmail
+  draft** (never auto-send; recipient must appear in the user's own task text). Honest
+  fallback notes when Gmail/LLM/no-recipient. Wired into the runtime's execute path.
+  Groups 1/6/8: `[~]` → first real action live.
+- **Rate limiting (Group 23/24):** `lib/security/rate-limit.ts` (+4 tests) applied to
+  `/api/chat`, `/api/research`, `/api/upload`, `/api/agent/tasks/:id/run`,
+  `/api/cowork/email-action`. Friendly 429s. In-memory (single-instance) by design.
+- **Contacts (Group 14 `[ ]` → `[~]` foundation):** migration `0009_contacts.sql`
+  (RLS + follow-up index), CRUD API `app/api/contacts`, `/contacts` page with search,
+  tags, relationship notes, follow-up due badges + "Done today", sidebar link.
+- **Approval UX (Group 3):** Level-3 approvals now need a **two-step explicit confirm**
+  in both the inbox and the task page; approval cards deep-link to their task.
+- **Admin (Group 21):** admin page adds tasks-by-status, approvals-by-status, and a
+  recent audit-log view (actions only — no content).
+- **Reliability (Group 23):** `lib/net/retry.ts` — retry/backoff on idempotent provider
+  calls only (embeddings, research, Composio GETs). Side-effecting calls are deliberately
+  NEVER retried (a timeout doesn't prove the action didn't happen).
+- Docs updated: HANDOFF, APPROVAL_SYSTEM, INTEGRATIONS, ROADMAP.
+
+### Session 3c — Fibo (same day): migration fix, background runner, mobile
+
+- **Migration fix:** the `relation "public.workspaces" does not exist` error on the fresh
+  Supabase project was ordering (0009 ran before the base schema). `_combined.sql` now
+  covers **0001–0009** — one idempotent paste-and-run for fresh projects.
+- **Background task runner (Group 4 `[~]` → working):** `startTaskInBackground` in
+  `lib/agent/runtime.ts` + `{ background: true }` on the run endpoint; a wall-clock guard
+  (4 min, progress saved) complements `max_steps`. Task page polls every 2.5s with live
+  step ticks and status toasts; approvals inbox resumes tasks in the background.
+  (Note: relies on a long-lived Node server; use a real queue before serverless deploys.)
+- **Mobile, Claude-app style (Group 22):** bottom tab bar (`components/mobile-nav.tsx`)
+  with safe-area padding and springy active pill; `h-dvh` app shell (keyboard/browser
+  chrome never covers the composer); `viewport-fit=cover` + `interactiveWidget:
+  resizes-content`; 16px inputs (no iOS focus zoom); tap-highlight removed; pressed-state
+  scale animations (reduced-motion respected); no overscroll rubber-banding.
+- **Haptics:** `lib/ui/haptics.ts` (light/medium/success/warning/error patterns) wired
+  into chat send, task run, approvals, contacts save, tab taps, and task status
+  transitions. Works on Android Chrome; iOS Safari doesn't expose vibration to web apps.
+
+---
+
+## Final Fibo Summary
+- **Already good (skipped, not rebuilt):** error handling, RLS/security foundation, RAG
+  pipeline + citation validation, memory CRUD + secret guard, task/approval data model,
+  connections architecture (tokens external to the app), graceful key-missing degradation,
+  honest documentation.
+- **Improved by Fibo:** approval decision semantics (2 safety bugs), Level-4 blocking at
+  three layers, approval inbox auto-resume + task deep-links, Level-3 two-step confirm,
+  **first real approved action (Gmail draft creation)**, rate limiting, retry/backoff on
+  idempotent provider calls, Contacts foundation (migration + API + UI), admin
+  tasks/approvals/audit overview, dead-code/dependency cleanup, 7 docs, 15 new tests
+  (41 total).
+- **Still partial:** non-email approved actions still simulated; background runner needs
+  a real queue before any serverless deploy; no e2e tests; no approval expiry job;
+  research confidence labels; role-agent registry not wired into chat; iOS haptics
+  impossible on the web (needs a wrapped app, e.g. Capacitor, if ever wanted).
+- **Blocked (needs your keys/decisions):** Gmail draft execution live test
+  (`COMPOSIO_API_KEY` + `COMPOSIO_GMAIL_AUTH_CONFIG_ID` + OAuth consent), Calendar/Drive/
+  Slack connectors, realtime voice (Deepgram/ElevenLabs/LiveKit), running
+  `_combined.sql` on the fresh Supabase project, live end-to-end verification (needs
+  your Supabase project + LLM key + signed-in browser).
+- **Recommended next step:** run `supabase/migrations/_combined.sql` once on the fresh
+  project, then walk the test checklist in `docs/HANDOFF.md` (agent loop → Gmail draft →
+  contacts → background tasks → mobile).

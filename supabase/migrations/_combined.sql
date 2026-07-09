@@ -1,6 +1,8 @@
 -- ============================================================
--- Aria — combined migrations (0001–0004). Run once in the
--- Supabase SQL Editor. Safe to re-run (idempotent guards).
+-- Aria — combined migrations (0001–0009). For a FRESH Supabase
+-- project: run this ONCE in the SQL Editor. Safe to re-run
+-- (idempotent guards). If some migrations are already applied,
+-- you can still run this file — existing objects are skipped.
 -- ============================================================
 
 -- >>>>>>>>>> 0001_init.sql <<<<<<<<<<
@@ -482,4 +484,294 @@ create policy "docs delete own workspace" on storage.objects
     and public.is_workspace_member((storage.foldername(name))[1]::uuid)
   );
 
+
+-- >>>>>>>>>> 0005_agents.sql <<<<<<<<<<
+-- ============================================================================
+-- Agent Teams (pipelines) + Self-Checking Loops.
+-- A single run record captures either a multi-agent pipeline or an iterative
+-- loop, with each step/iteration appended to `steps` (jsonb). Workspace-scoped
+-- with RLS, like every other private table.
+-- ============================================================================
+
+create table if not exists public.agent_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete set null,
+  kind text not null check (kind in ('pipeline', 'loop')),
+  title text not null,
+  input text not null default '',
+  config jsonb not null default '{}'::jsonb,   -- pipeline: {teamKey, steps[]}; loop: {criteria[], maxIterations}
+  steps jsonb not null default '[]'::jsonb,      -- appended per step/iteration
+  final_output text,
+  status text not null default 'running' check (status in ('running', 'completed', 'failed')),
+  iterations int not null default 0,
+  report_id uuid references public.reports(id) on delete set null,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_agent_runs_ws on public.agent_runs(workspace_id);
+create index if not exists idx_agent_runs_project on public.agent_runs(project_id);
+
+alter table public.agent_runs enable row level security;
+
+drop policy if exists agent_runs_ws_all on public.agent_runs;
+create policy agent_runs_ws_all on public.agent_runs
+  for all
+  using (public.is_workspace_member(workspace_id))
+  with check (public.is_workspace_member(workspace_id));
+
+drop trigger if exists trg_touch_agent_runs on public.agent_runs;
+create trigger trg_touch_agent_runs before update on public.agent_runs
+  for each row execute function public.touch_updated_at();
+
+
+-- >>>>>>>>>> 0006_training_logs.sql <<<<<<<<<<
+-- ============================================================================
+-- Continuous Distillation: LLM Training Logs
+-- Stores exact prompt/response pairs with user feedback for fine-tuning.
+-- ============================================================================
+
+create table if not exists public.llm_training_logs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete set null,
+  
+  -- The exact model used to generate this response (e.g., openai:gpt-4o, google:gemini-1.5-pro)
+  model_id text not null,
+  
+  -- Full context passed to the model
+  system_prompt text not null,
+  messages_json jsonb not null default '[]'::jsonb,
+  
+  -- What the model outputted
+  response_text text not null,
+  
+  -- Was this a good response for training? (up/down/none)
+  quality_rating text check (quality_rating in ('up', 'down')),
+  
+  -- How long it took, cost, tokens, etc.
+  metadata jsonb not null default '{}'::jsonb,
+  
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_trainlog_ws on public.llm_training_logs(workspace_id);
+create index if not exists idx_trainlog_rating on public.llm_training_logs(quality_rating);
+
+-- RLS Policies
+alter table public.llm_training_logs enable row level security;
+
+create policy "Users can view their own workspace training logs"
+  on public.llm_training_logs for select
+  using (public.is_workspace_member(workspace_id));
+
+create policy "Users can insert their own workspace training logs"
+  on public.llm_training_logs for insert
+  with check (public.is_workspace_member(workspace_id));
+
+create policy "Users can update their own workspace training logs"
+  on public.llm_training_logs for update
+  using (public.is_workspace_member(workspace_id));
+
+-- Trigger for updated_at
+create trigger trg_touch_llm_training_logs
+  before update on public.llm_training_logs
+  for each row execute function public.touch_updated_at();
+
+
+-- >>>>>>>>>> 0007_connections.sql <<<<<<<<<<
+-- ============================================================================
+-- Connectors / plugins (Composio). We store a reference to each connected
+-- account, NOT the OAuth tokens themselves — Composio holds the tokens. Every
+-- row is workspace-scoped with RLS. The Composio "entity" is the Aria user id.
+-- ============================================================================
+
+create table if not exists public.connections (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null,                 -- e.g. 'gmail', 'googlecalendar', 'github'
+  composio_connection_id text,            -- Composio connected-account id
+  composio_entity_id text not null,       -- entity used with Composio (= Aria user id)
+  account_label text,                     -- e.g. the connected email address
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'error', 'disconnected')),
+  scopes jsonb not null default '[]'::jsonb,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (workspace_id, provider)
+);
+create index if not exists idx_connections_ws on public.connections(workspace_id);
+
+alter table public.connections enable row level security;
+
+drop policy if exists connections_ws_all on public.connections;
+create policy connections_ws_all on public.connections
+  for all
+  using (public.is_workspace_member(workspace_id))
+  with check (public.is_workspace_member(workspace_id));
+
+drop trigger if exists trg_touch_connections on public.connections;
+create trigger trg_touch_connections before update on public.connections
+  for each row execute function public.touch_updated_at();
+
+
+-- >>>>>>>>>> 0008_agent_tasks.sql <<<<<<<<<<
+-- ============================================================================
+-- 0008 — Agent task engine + human-in-the-loop approvals.
+--
+-- The core of the "AI OS": a durable, auditable record of multi-step agent work
+-- and the approvals that gate any risky action. Mirrors the RLS convention from
+-- 0002 (workspace-scoped via public.is_workspace_member).
+-- ============================================================================
+
+-- Long-running unit of agent work.
+create table if not exists public.agent_tasks (
+  id             uuid primary key default gen_random_uuid(),
+  workspace_id   uuid not null references public.workspaces(id) on delete cascade,
+  user_id        uuid not null references auth.users(id) on delete cascade,
+  project_id     uuid references public.projects(id) on delete set null,
+  title          text not null,
+  description    text,
+  -- queued | running | waiting_for_approval | completed | failed | cancelled
+  status         text not null default 'queued',
+  priority       text not null default 'normal',   -- low | normal | high
+  risk_level     smallint not null default 0,      -- 0..4 (see lib/agent/types.ts)
+  current_step   integer not null default 0,
+  max_steps      integer not null default 25,      -- guard against runaway loops
+  cost_estimate  numeric(10,4) not null default 0,
+  cost_actual    numeric(10,4) not null default 0,
+  result         text,
+  error_message  text,                              -- user-safe; no stack traces
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  completed_at   timestamptz,
+  failed_at      timestamptz
+);
+
+create index if not exists agent_tasks_ws_idx on public.agent_tasks (workspace_id, created_at desc);
+create index if not exists agent_tasks_status_idx on public.agent_tasks (workspace_id, status);
+
+-- One step within a task's plan/execution timeline.
+create table if not exists public.agent_task_steps (
+  id           uuid primary key default gen_random_uuid(),
+  task_id      uuid not null references public.agent_tasks(id) on delete cascade,
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  idx          integer not null,                    -- ordering within the task
+  kind         text not null default 'action',      -- plan | action | tool | approval | review
+  -- pending | running | completed | failed | skipped
+  status       text not null default 'pending',
+  summary      text not null,                        -- safe, human-readable
+  tool_name    text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists agent_steps_task_idx on public.agent_task_steps (task_id, idx);
+
+-- A gate on a side-effecting action. `safe_metadata` must never contain private
+-- payloads (email bodies, file contents, secrets) — only what's safe to display.
+create table if not exists public.approvals (
+  id            uuid primary key default gen_random_uuid(),
+  workspace_id  uuid not null references public.workspaces(id) on delete cascade,
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  task_id       uuid references public.agent_tasks(id) on delete cascade,
+  step_id       uuid references public.agent_task_steps(id) on delete set null,
+  action_type   text not null,                       -- e.g. send_email, book_calendar
+  risk_level    smallint not null default 2,         -- 0..4
+  -- pending | approved | rejected | changes_requested | expired
+  status        text not null default 'pending',
+  summary       text not null,                        -- safe one-line description
+  tool_name     text,
+  safe_metadata jsonb not null default '{}'::jsonb,
+  created_at    timestamptz not null default now(),
+  decided_at    timestamptz,
+  decided_by    uuid references auth.users(id) on delete set null
+);
+
+create index if not exists approvals_ws_status_idx on public.approvals (workspace_id, status, created_at desc);
+
+-- ---- RLS: workspace-scoped, same pattern as 0002 --------------------------
+alter table public.agent_tasks       enable row level security;
+alter table public.agent_task_steps  enable row level security;
+alter table public.approvals         enable row level security;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['agent_tasks','agent_task_steps','approvals'] loop
+    execute format('drop policy if exists %1$s_ws_all on public.%1$s;', t);
+    execute format($f$
+      create policy %1$s_ws_all on public.%1$s
+        for all
+        using (public.is_workspace_member(workspace_id))
+        with check (public.is_workspace_member(workspace_id));
+    $f$, t);
+  end loop;
+end $$;
+
+-- Keep updated_at fresh on writes.
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists agent_tasks_touch on public.agent_tasks;
+create trigger agent_tasks_touch before update on public.agent_tasks
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists agent_steps_touch on public.agent_task_steps;
+create trigger agent_steps_touch before update on public.agent_task_steps
+  for each row execute function public.touch_updated_at();
+
+
+-- >>>>>>>>>> 0009_contacts.sql <<<<<<<<<<
+-- ============================================================================
+-- 0009 — Contacts / relationship manager.
+--
+-- People Aria helps you stay on top of: who they are, how you know them, when
+-- you last talked, and when to follow up. Workspace-scoped with the same RLS
+-- convention as 0002/0008. Message drafts/sends still go through approvals.
+-- ============================================================================
+
+create table if not exists public.contacts (
+  id                  uuid primary key default gen_random_uuid(),
+  workspace_id        uuid not null references public.workspaces(id) on delete cascade,
+  user_id             uuid not null references auth.users(id) on delete cascade,
+  full_name           text not null,
+  email               text,
+  phone               text,
+  company             text,
+  role                text,                              -- their job title / relation
+  tags                text[] not null default '{}',      -- e.g. {client, investor, friend}
+  notes               text,                              -- free-form relationship notes
+  relationship        text,                              -- one-line summary of the relationship
+  last_interaction_at timestamptz,
+  follow_up_at        timestamptz,                       -- when Aria should surface a nudge
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+
+create index if not exists contacts_ws_idx on public.contacts (workspace_id, full_name);
+create index if not exists contacts_followup_idx on public.contacts (workspace_id, follow_up_at)
+  where follow_up_at is not null;
+
+alter table public.contacts enable row level security;
+
+drop policy if exists contacts_ws_all on public.contacts;
+create policy contacts_ws_all on public.contacts
+  for all
+  using (public.is_workspace_member(workspace_id))
+  with check (public.is_workspace_member(workspace_id));
+
+drop trigger if exists contacts_touch on public.contacts;
+create trigger contacts_touch before update on public.contacts
+  for each row execute function public.touch_updated_at();
 

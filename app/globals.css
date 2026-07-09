@@ -88,6 +88,41 @@
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
+
+  /* ---- Mobile app feel (native smoothness, Claude-app style) ------------ */
+  html {
+    /* No double-tap zoom delay; taps feel instant. */
+    touch-action: manipulation;
+    /* Kill the grey/blue tap flash — we provide our own pressed states. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    /* No rubber-band scroll-chaining behind the app shell. */
+    overscroll-behavior-y: none;
+  }
+  @media (max-width: 767px) {
+    /* iOS Safari auto-zooms into inputs under 16px — keep them at 16px so the
+       viewport never jumps when the composer is focused. */
+    input, select, textarea {
+      font-size: 16px;
+    }
+    /* Springy pressed state on touch for all tappable controls. */
+    button, a, [role="button"] {
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    button:active, a:active, [role="button"]:active {
+      transform: scale(0.97);
+    }
+    /* Momentum scrolling everywhere content scrolls. */
+    .scrollbar-thin, main {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button:active, a:active, [role="button"]:active {
+      transform: none;
+    }
+  }
 }
 
 @layer utilities {

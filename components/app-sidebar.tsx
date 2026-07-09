@@ -19,6 +19,7 @@ import {
   Plug,
   ListTodo,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -39,6 +40,7 @@ const NAV: NavItem[] = [
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/connections", label: "Connections", icon: Plug },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
+  { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/memory", label: "Memory", icon: Brain },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/admin", label: "Admin", icon: ShieldAlert, adminOnly: true },
@@ -58,7 +60,7 @@ export function AppSidebar({
 
   const signOut = async () => {
     await createClient().auth.signOut();
-    router.push("/login");
+    router.push("/?state=closed");
     router.refresh();
   };
 
@@ -140,7 +142,7 @@ export function AppSidebar({
       </div>
 
       {/* Desktop sidebar */}
-      <aside className="hidden h-screen w-64 shrink-0 overflow-hidden border-r border-outline-variant bg-surface-container-low backdrop-blur-xl md:block">
+      <aside className="hidden h-dvh w-64 shrink-0 overflow-hidden border-r border-outline-variant bg-surface-container-low backdrop-blur-xl md:block">
         {content}
       </aside>
 

@@ -1,13 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Check, X, Pencil, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Check, X, Pencil, ShieldCheck, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import type { Approval, RiskLevel } from "@/lib/agent/types";
 import { RISK_LABELS } from "@/lib/agent/types";
+import { isApprovable } from "@/lib/agent/approval-policy";
+import { haptic } from "@/lib/ui/haptics";
 import { formatDate } from "@/lib/utils";
 
 const RISK_TONE: Record<RiskLevel, React.ComponentProps<typeof Badge>["tone"]> = {
@@ -24,22 +27,43 @@ export function ApprovalsClient({ initial }: { initial: Approval[] }) {
   const { success, error } = useToast();
   const [items, setItems] = React.useState<Approval[]>(initial);
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  // Level-3 (high-risk) approvals require a second, explicit confirmation click.
+  const [confirmId, setConfirmId] = React.useState<string | null>(null);
 
-  async function decide(id: string, decision: Decision) {
-    setBusyId(id);
+  async function decide(approval: Approval, decision: Decision) {
+    setBusyId(approval.id);
+    haptic(decision === "approve" ? "medium" : "light");
     try {
-      const res = await fetch(`/api/approvals/${id}`, {
+      const res = await fetch(`/api/approvals/${approval.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not record your decision.");
-      setItems((list) => list.filter((a) => a.id !== id));
-      success(
-        decision === "approve" ? "Approved" : decision === "reject" ? "Rejected" : "Changes requested",
-      );
+      setItems((list) => list.filter((a) => a.id !== approval.id));
+
+      // Approving unblocks the linked task — resume it in the background.
+      if (decision === "approve" && approval.task_id) {
+        const run = await fetch(`/api/agent/tasks/${approval.task_id}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ background: true }),
+        });
+        if (run.ok) {
+          haptic("success");
+          success("Approved — task resumed in the background", "Watch live progress on its task page.");
+        } else {
+          error("Approved, but the task could not resume", "Open it in Tasks and press Run.");
+        }
+      } else {
+        if (decision === "reject") haptic("error");
+        success(
+          decision === "approve" ? "Approved" : decision === "reject" ? "Rejected" : "Changes requested",
+        );
+      }
     } catch (err) {
+      haptic("error");
       error("Could not submit decision", err instanceof Error ? err.message : undefined);
     } finally {
       setBusyId(null);
@@ -86,15 +110,44 @@ export function ApprovalsClient({ initial }: { initial: Approval[] }) {
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={() => decide(a.id, "approve")} disabled={busy}>
-                <Check className="mr-1 h-4 w-4" /> Approve
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => decide(a.id, "reject")} disabled={busy}>
+              {isApprovable(a.risk_level) ? (
+                a.risk_level >= 3 && confirmId !== a.id ? (
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmId(a.id)} disabled={busy}>
+                    <AlertTriangle className="mr-1 h-4 w-4" /> Approve high-risk…
+                  </Button>
+                ) : a.risk_level >= 3 ? (
+                  <>
+                    <Button size="sm" variant="destructive" onClick={() => { setConfirmId(null); decide(a, "approve"); }} disabled={busy}>
+                      <Check className="mr-1 h-4 w-4" /> Yes, I approve this high-risk action
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirmId(null)} disabled={busy}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={() => decide(a, "approve")} disabled={busy}>
+                    <Check className="mr-1 h-4 w-4" /> Approve
+                  </Button>
+                )
+              ) : (
+                <span className="text-xs text-destructive">
+                  Blocked by policy — this action cannot be approved.
+                </span>
+              )}
+              <Button size="sm" variant="destructive" onClick={() => decide(a, "reject")} disabled={busy}>
                 <X className="mr-1 h-4 w-4" /> Reject
               </Button>
-              <Button size="sm" variant="outline" onClick={() => decide(a.id, "request_changes")} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={() => decide(a, "request_changes")} disabled={busy}>
                 <Pencil className="mr-1 h-4 w-4" /> Request changes
               </Button>
+              {a.task_id && (
+                <Link
+                  href={`/tasks/${a.task_id}`}
+                  className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  View task <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
             </div>
           </Card>
         );

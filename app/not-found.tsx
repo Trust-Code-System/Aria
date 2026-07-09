@@ -9,8 +9,8 @@ export default function NotFound() {
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         The page you’re looking for doesn’t exist or may have moved.
       </p>
-      <Link href="/dashboard" className="mt-6">
-        <Button>Back to dashboard</Button>
+      <Link href="/chat" className="mt-6">
+        <Button>Back to new chat</Button>
       </Link>
     </div>
   );

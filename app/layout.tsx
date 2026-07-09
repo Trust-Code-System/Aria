@@ -13,6 +13,11 @@ export const viewport: Viewport = {
   themeColor: "#4f493f",
   width: "device-width",
   initialScale: 1,
+  // App-like mobile behavior: draw edge-to-edge behind notches/home indicator
+  // (safe-area insets handle the padding) and let the on-screen keyboard
+  // resize the layout so the chat composer stays visible while typing.
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -3,6 +3,7 @@ import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server
 import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { sanitizeFilename, validateFile, getExtension } from "@/lib/security/sanitize";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { ingestDocument } from "@/lib/ingestion/pipeline";
 import { logAudit } from "@/lib/logging/error-log";
 import { configured } from "@/lib/env";
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
+    rateLimit("upload", ctx.userId);
     if (!configured.supabaseAdmin) {
       throw new AppError({
         area: "upload",

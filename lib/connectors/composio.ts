@@ -1,5 +1,6 @@
 import { env, configured } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { fetchWithRetry } from "@/lib/net/retry";
 
 /**
  * Composio client (thin REST wrapper). One integration unlocks 500+ apps.
@@ -30,7 +31,11 @@ function assertConfigured() {
 
 async function composio<T>(path: string, init?: RequestInit): Promise<T> {
   assertConfigured();
-  const res = await fetch(`${env.composioBaseUrl}${path}`, {
+  // Only GETs are retried: tool executions / mutations must never run twice
+  // because of a timeout (the action may have gone through).
+  const method = (init?.method ?? "GET").toUpperCase();
+  const doFetch = method === "GET" ? fetchWithRetry : fetch;
+  const res = await doFetch(`${env.composioBaseUrl}${path}`, {
     ...init,
     headers: {
       "x-api-key": env.composioKey,

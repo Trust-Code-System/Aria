@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Play, Loader2, Check, X, Circle, MinusCircle, AlertCircle, Pencil } from "lucide-react";
+import { Play, Loader2, Check, X, Circle, MinusCircle, AlertCircle, AlertTriangle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { Markdown } from "@/components/chat/markdown";
 import type { AgentTask, AgentTaskStep, Approval, StepStatus, TaskStatus } from "@/lib/agent/types";
 import { isTerminal, RISK_LABELS } from "@/lib/agent/types";
+import { haptic } from "@/lib/ui/haptics";
 
 const STATUS_TONE: Record<TaskStatus, React.ComponentProps<typeof Badge>["tone"]> = {
   queued: "muted",
@@ -48,6 +49,8 @@ export function TaskDetailClient({
   const [approvals, setApprovals] = React.useState(initialApprovals);
   const [running, setRunning] = React.useState(false);
   const [deciding, setDeciding] = React.useState<string | null>(null);
+  // Level-3 (high-risk) approvals need a second, explicit confirmation click.
+  const [confirmId, setConfirmId] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async () => {
     const res = await fetch(`/api/agent/tasks/${task.id}`);
@@ -58,16 +61,44 @@ export function TaskDetailClient({
     setApprovals(data.approvals);
   }, [task.id]);
 
+  // Live progress: while the task is running in the background, poll it and
+  // announce transitions (paused for approval / completed / failed).
+  const prevStatus = React.useRef<TaskStatus>(initialTask.status);
+  React.useEffect(() => {
+    if (prevStatus.current !== task.status) {
+      if (task.status === "waiting_for_approval") {
+        haptic("warning");
+        success("Paused for your approval");
+      } else if (task.status === "completed") {
+        haptic("success");
+        success("Task completed");
+      } else if (task.status === "failed") {
+        haptic("error");
+        error("The task failed", task.error_message ?? undefined);
+      }
+      prevStatus.current = task.status;
+    }
+    if (task.status !== "running") return;
+    const id = setInterval(refresh, 2500);
+    return () => clearInterval(id);
+  }, [task.status, task.error_message, refresh, success, error]);
+
   async function run() {
     setRunning(true);
+    haptic("medium");
     try {
-      const res = await fetch(`/api/agent/tasks/${task.id}/run`, { method: "POST" });
+      const res = await fetch(`/api/agent/tasks/${task.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ background: true }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "The task could not run.");
+      // Reflect "running" immediately; the polling effect takes it from here.
       await refresh();
-      if (data.status === "waiting_for_approval") success("Paused for your approval");
-      else if (data.status === "completed") success("Task completed");
+      setTask((t) => (isTerminal(t.status) ? t : { ...t, status: "running" }));
     } catch (err) {
+      haptic("error");
       error("Run failed", err instanceof Error ? err.message : undefined);
     } finally {
       setRunning(false);
@@ -76,6 +107,7 @@ export function TaskDetailClient({
 
   async function decide(id: string, decision: "approve" | "reject" | "request_changes") {
     setDeciding(id);
+    haptic(decision === "approve" ? "medium" : "light");
     try {
       const res = await fetch(`/api/approvals/${id}`, {
         method: "POST",
@@ -95,7 +127,8 @@ export function TaskDetailClient({
   }
 
   const pendingApprovals = approvals.filter((a) => a.status === "pending");
-  const canRun = !isTerminal(task.status) && !running;
+  const isRunning = running || task.status === "running";
+  const canRun = !isTerminal(task.status) && !isRunning;
 
   return (
     <div className="space-y-6">
@@ -107,8 +140,14 @@ export function TaskDetailClient({
         </span>
         <div className="ml-auto">
           <Button onClick={run} disabled={!canRun}>
-            {running ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
-            {task.status === "queued" ? "Run" : task.status === "waiting_for_approval" ? "Resume" : "Run again"}
+            {isRunning ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
+            {isRunning
+              ? "Running…"
+              : task.status === "queued"
+                ? "Run"
+                : task.status === "waiting_for_approval"
+                  ? "Resume"
+                  : "Run again"}
           </Button>
         </div>
       </div>
@@ -128,9 +167,31 @@ export function TaskDetailClient({
               </div>
               <p className="mt-2 font-medium">{a.summary}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => decide(a.id, "approve")} disabled={deciding === a.id}>
-                  <Check className="mr-1 h-4 w-4" /> Approve
-                </Button>
+                {a.risk_level >= 4 ? (
+                  <span className="text-xs text-destructive">Blocked by policy — this action cannot be approved.</span>
+                ) : a.risk_level >= 3 && confirmId !== a.id ? (
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmId(a.id)} disabled={deciding === a.id}>
+                    <AlertTriangle className="mr-1 h-4 w-4" /> Approve high-risk…
+                  </Button>
+                ) : a.risk_level >= 3 ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => { setConfirmId(null); decide(a.id, "approve"); }}
+                      disabled={deciding === a.id}
+                    >
+                      <Check className="mr-1 h-4 w-4" /> Yes, I approve this high-risk action
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirmId(null)} disabled={deciding === a.id}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={() => decide(a.id, "approve")} disabled={deciding === a.id}>
+                    <Check className="mr-1 h-4 w-4" /> Approve
+                  </Button>
+                )}
                 <Button size="sm" variant="destructive" onClick={() => decide(a.id, "reject")} disabled={deciding === a.id}>
                   <X className="mr-1 h-4 w-4" /> Reject
                 </Button>

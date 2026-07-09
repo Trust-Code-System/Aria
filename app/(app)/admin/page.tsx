@@ -38,16 +38,34 @@ export default async function AdminPage() {
   }
 
   const admin = createAdminSupabase();
-  const [errRes, unresolvedRes, failedDocsRes, feedbackRes, downFeedbackRes] = await Promise.all([
-    admin.from("error_logs").select("*").order("created_at", { ascending: false }).limit(200),
-    admin.from("error_logs").select("id", { count: "exact", head: true }).eq("resolved", false),
-    admin.from("documents").select("id", { count: "exact", head: true }).eq("ingestion_status", "failed"),
-    admin.from("feedback").select("id, rating, comment, created_at").order("created_at", { ascending: false }).limit(50),
-    admin.from("feedback").select("id", { count: "exact", head: true }).eq("rating", "down"),
-  ]);
+  const [errRes, unresolvedRes, failedDocsRes, feedbackRes, downFeedbackRes, tasksRes, approvalsRes, auditRes] =
+    await Promise.all([
+      admin.from("error_logs").select("*").order("created_at", { ascending: false }).limit(200),
+      admin.from("error_logs").select("id", { count: "exact", head: true }).eq("resolved", false),
+      admin.from("documents").select("id", { count: "exact", head: true }).eq("ingestion_status", "failed"),
+      admin.from("feedback").select("id, rating, comment, created_at").order("created_at", { ascending: false }).limit(50),
+      admin.from("feedback").select("id", { count: "exact", head: true }).eq("rating", "down"),
+      // Metadata only — titles/results/summaries stay private to the workspace.
+      admin.from("agent_tasks").select("status").order("created_at", { ascending: false }).limit(1000),
+      admin.from("approvals").select("status, risk_level").order("created_at", { ascending: false }).limit(1000),
+      admin
+        .from("audit_logs")
+        .select("id, action, target_type, created_at")
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]);
 
   const errors = (errRes.data ?? []) as ErrorRow[];
   const feedback = feedbackRes.data ?? [];
+  const taskByStatus = (tasksRes.data ?? []).reduce<Record<string, number>>((acc, t) => {
+    acc[t.status] = (acc[t.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const approvalByStatus = (approvalsRes.data ?? []).reduce<Record<string, number>>((acc, a) => {
+    acc[a.status] = (acc[a.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const auditRows = auditRes.data ?? [];
 
   // Group error counts by feature area for a quick health view.
   const byArea = errors.reduce<Record<string, number>>((acc, e) => {
@@ -96,9 +114,65 @@ export default async function AdminPage() {
         </div>
       )}
 
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Agent tasks by status</h2>
+          {Object.keys(taskByStatus).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No agent tasks yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(taskByStatus)
+                .sort((a, b) => b[1] - a[1])
+                .map(([status, count]) => (
+                  <span key={status} className="rounded-full border border-border bg-card px-3 py-1 text-xs">
+                    <span className="font-medium">{status.replace(/_/g, " ")}</span>{" "}
+                    <span className="text-muted-foreground">{count}</span>
+                  </span>
+                ))}
+            </div>
+          )}
+        </Card>
+        <Card className="p-5">
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Approvals by status</h2>
+          {Object.keys(approvalByStatus).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No approvals yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(approvalByStatus)
+                .sort((a, b) => b[1] - a[1])
+                .map(([status, count]) => (
+                  <span key={status} className="rounded-full border border-border bg-card px-3 py-1 text-xs">
+                    <span className="font-medium">{status.replace(/_/g, " ")}</span>{" "}
+                    <span className="text-muted-foreground">{count}</span>
+                  </span>
+                ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
       <div className="mt-8">
         <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Error logs</h2>
         <AdminErrors initial={errors} />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+          Recent activity (audit log — actions only, no content)
+        </h2>
+        {auditRows.length === 0 ? (
+          <Card className="p-5 text-sm text-muted-foreground">No audit entries yet.</Card>
+        ) : (
+          <div className="divide-y divide-border rounded-xl border border-border bg-card">
+            {auditRows.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="font-medium">{a.action}</span>
+                {a.target_type && <span className="text-xs text-muted-foreground">{a.target_type}</span>}
+                <span className="ml-auto text-xs text-muted-foreground">{formatTime(a.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-8">

@@ -2,6 +2,7 @@ import { streamText, type CoreMessage } from "ai";
 import { z } from "zod";
 import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
 import { buildSystemPrompt, renderRetrievedContext, type ChatMode } from "@/lib/ai/prompts";
 import { retrieveChunks, hasUsableContext } from "@/lib/ai/rag";
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
+    rateLimit("chat", ctx.userId);
     const json = await req.json();
     const { conversationId, projectId, mode, message, attachments } = bodySchema.parse(json);
 

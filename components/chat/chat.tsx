@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/states";
 import type { Citation } from "@/lib/ai/types";
 import { continueList } from "@/lib/editor/list-continuation";
 import { startDictation, speechRecognitionSupported } from "@/lib/voice/speech";
+import { haptic } from "@/lib/ui/haptics";
 import { cn } from "@/lib/utils";
 
 interface ChatProps {
@@ -224,6 +225,7 @@ export function Chat({
       toastError("Still reading attachments", "Give it a second and try again.");
       return;
     }
+    haptic("medium");
 
     const displayAttachments: ChatAttachment[] = readyAttachments.map((a) => ({
       kind: a.kind,

@@ -3,6 +3,7 @@ import { embed, embedMany } from "ai";
 import { env } from "@/lib/env";
 import { parseModelId } from "@/lib/ai/providers";
 import { configMissing } from "@/lib/errors";
+import { withRetry, fetchWithRetry } from "@/lib/net/retry";
 
 /**
  * Provider-aware embedding abstraction. The output dimension MUST match the DB
@@ -40,11 +41,12 @@ async function embedOpenAI(texts: string[], model: string): Promise<number[][]> 
   const out: number[][] = [];
   for (let i = 0; i < texts.length; i += BATCH) {
     const slice = texts.slice(i, i + BATCH);
+    // Embeddings are idempotent — safe to retry on transient failures.
     if (slice.length === 1) {
-      const { embedding } = await embed({ model: m, value: slice[0] });
+      const { embedding } = await withRetry(() => embed({ model: m, value: slice[0] }));
       out.push(embedding);
     } else {
-      const { embeddings } = await embedMany({ model: m, values: slice });
+      const { embeddings } = await withRetry(() => embedMany({ model: m, values: slice }));
       out.push(...embeddings);
     }
   }
@@ -59,7 +61,7 @@ async function embedGoogle(texts: string[], model: string): Promise<number[][]> 
   const out: number[][] = [];
   for (let i = 0; i < texts.length; i += BATCH) {
     const slice = texts.slice(i, i + BATCH);
-    const res = await fetch(endpoint, {
+    const res = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

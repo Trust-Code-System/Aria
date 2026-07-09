@@ -4,7 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { apiOk, apiError } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { logAudit } from "@/lib/logging/error-log";
-import type { ApprovalStatus, TaskStatus } from "@/lib/agent/types";
+import { isApprovable } from "@/lib/agent/approval-policy";
+import type { ApprovalStatus, RiskLevel, TaskStatus } from "@/lib/agent/types";
 
 export const runtime = "nodejs";
 
@@ -13,10 +14,11 @@ const decideSchema = z.object({
 });
 
 // decision → new approval status, and the task status it implies (if linked).
+// "queued" (not "running") — nothing is executing yet; the run endpoint resumes it.
 const OUTCOME: Record<string, { approval: ApprovalStatus; task?: TaskStatus }> = {
-  approve: { approval: "approved", task: "running" },
+  approve: { approval: "approved", task: "queued" },
   reject: { approval: "rejected", task: "cancelled" },
-  request_changes: { approval: "changes_requested" },
+  request_changes: { approval: "changes_requested", task: "queued" },
 };
 
 /** POST /api/approvals/:id — approve / reject / request changes on a gated action. */
@@ -29,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const { data: approval } = await supabase
       .from("approvals")
-      .select("id, status, task_id, action_type")
+      .select("id, status, task_id, action_type, risk_level")
       .eq("id", params.id)
       .eq("workspace_id", ctx.workspaceId)
       .maybeSingle();
@@ -38,6 +40,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     if (approval.status !== "pending") {
       throw new AppError({ area: "approvals", category: "validation", userMessage: "This request was already decided." });
+    }
+    // Level 4 actions are blocked by policy — they can be rejected, never approved.
+    if (decision === "approve" && !isApprovable(approval.risk_level as RiskLevel)) {
+      throw new AppError({
+        area: "approvals",
+        category: "validation",
+        userMessage: "This action is blocked by policy (Level 4) and cannot be approved.",
+      });
     }
 
     const outcome = OUTCOME[decision];

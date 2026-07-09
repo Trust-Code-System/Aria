@@ -1,5 +1,6 @@
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { fetchWithRetry } from "@/lib/net/retry";
 import type { Citation } from "@/lib/ai/types";
 
 /**
@@ -39,7 +40,8 @@ export async function runResearch(query: string): Promise<ResearchResult> {
 
 async function runPerplexity(query: string): Promise<ResearchResult> {
   const model = env.defaultResearchModel.split(":").pop() || "sonar";
-  const res = await fetch("https://api.perplexity.ai/chat/completions", {
+  // Read-only query — safe to retry on transient failures.
+  const res = await fetchWithRetry("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.perplexityKey}`,
@@ -83,7 +85,8 @@ async function runPerplexity(query: string): Promise<ResearchResult> {
 }
 
 async function runTavily(query: string): Promise<ResearchResult> {
-  const res = await fetch("https://api.tavily.com/search", {
+  // Read-only query — safe to retry on transient failures.
+  const res = await fetchWithRetry("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

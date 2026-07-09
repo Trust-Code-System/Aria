@@ -20,6 +20,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
 import { runResearch } from "@/lib/ai/research";
 import { classifyStepRisk } from "@/lib/agent/risk";
+import { gateForRiskLevel, resolveApprovalOutcome } from "@/lib/agent/approval-policy";
+import { performApprovedStep } from "@/lib/agent/execute";
 import { RISK_LABELS } from "@/lib/agent/types";
 import type { AgentTask, AgentTaskStep } from "@/lib/agent/types";
 import { logError } from "@/lib/logging/error-log";
@@ -97,12 +99,33 @@ export interface RunResult {
 }
 
 /**
+ * Wall-clock guard for a single run: complements `max_steps`. Especially
+ * important in background mode, where no HTTP timeout bounds the work.
+ */
+const TASK_WALL_CLOCK_MS = 4 * 60_000;
+
+/**
+ * Start a task in the background (fire-and-forget) and return immediately.
+ * The UI polls the task for live status. Failures are logged, never thrown.
+ *
+ * Note: relies on a long-lived Node server (`next dev`/`next start`). On
+ * scale-to-zero serverless the work could be cut off — move to a real queue
+ * before deploying there.
+ */
+export function startTaskInBackground(taskId: string, ctx: SessionContext): void {
+  void runTask(taskId, ctx).catch(async (err) => {
+    await logError({ area: "tasks", error: err, workspaceId: ctx.workspaceId, userId: ctx.userId });
+  });
+}
+
+/**
  * Run (or resume) a task. Returns the task's resulting status.
  * Uses the caller's RLS-scoped Supabase client, so it can only touch the
  * caller's own workspace rows.
  */
 export async function runTask(taskId: string, ctx: SessionContext): Promise<RunResult> {
   const supabase = createServerSupabase();
+  const startedAt = Date.now();
 
   const { data: task } = await supabase
     .from("agent_tasks")
@@ -155,8 +178,22 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
         await finishTask(supabase, taskId, "failed", result, "Reached the step limit before finishing.");
         return { status: "failed", message: "Reached the step limit." };
       }
+      if (Date.now() - startedAt > TASK_WALL_CLOCK_MS) {
+        await finishTask(supabase, taskId, "failed", result, "The task took too long and was stopped. Run it again to resume from where it left off.");
+        return { status: "failed", message: "Task timed out (progress saved)." };
+      }
 
       const risk = classifyStepRisk(step.summary);
+
+      // Level 4 is BLOCKED by policy: never ask, never execute.
+      if (gateForRiskLevel(risk.riskLevel) === "blocked") {
+        const outcome = resolveApprovalOutcome(risk.riskLevel, null);
+        const note = outcome.action === "blocked" ? outcome.note : "Blocked by policy.";
+        result += `\n\n### ${step.summary}\n${note}`;
+        await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+        executed += 1;
+        continue;
+      }
 
       if (risk.risky) {
         // Look for an existing decision on this step.
@@ -185,17 +222,32 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           await supabase.from("agent_tasks").update({ status: "waiting_for_approval", current_step: step.idx }).eq("id", taskId);
           return { status: "waiting_for_approval", message: "Waiting for your approval." };
         }
-        if (existing.status === "pending") {
+        const outcome = resolveApprovalOutcome(
+          risk.riskLevel,
+          existing.status as Parameters<typeof resolveApprovalOutcome>[1],
+        );
+
+        if (outcome.action === "wait") {
           await supabase.from("agent_tasks").update({ status: "waiting_for_approval", current_step: step.idx }).eq("id", taskId);
           return { status: "waiting_for_approval", message: "Waiting for your approval." };
         }
-        if (existing.status === "rejected") {
+        if (outcome.action === "cancel_task") {
           await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
-          await finishTask(supabase, taskId, "cancelled", result, "You rejected a required action.");
+          await finishTask(supabase, taskId, "cancelled", result, outcome.note);
           return { status: "cancelled", message: "Action was rejected." };
         }
-        // approved / changes_requested → perform (simulated, no real side effect yet).
-        result += `\n\n### ${step.summary}\n✅ Approved — action performed (simulated; real tool integration pending).`;
+        if (outcome.action === "skip" || outcome.action === "blocked") {
+          result += `\n\n### ${step.summary}\n${outcome.note}`;
+          await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+          executed += 1;
+          continue;
+        }
+        // outcome.action === "execute" — the ONLY path that performs the action.
+        // Email actions create a real Gmail DRAFT when Gmail is connected (never
+        // an auto-send); everything else records an honest simulation note.
+        await supabase.from("agent_task_steps").update({ status: "running" }).eq("id", step.id);
+        const performed = await performApprovedStep(task, step, risk.actionType, result, ctx);
+        result += `\n\n### ${step.summary}\n${performed.note}`;
         await supabase.from("agent_task_steps").update({ status: "completed" }).eq("id", step.id);
         executed += 1;
         continue;

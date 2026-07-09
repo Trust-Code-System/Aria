@@ -18,9 +18,15 @@ Copy `.env.example` → `.env.local` and fill in. Minimum for the features built
 > Secrets never go in the repo. `.env.local` is git-ignored.
 
 ## 2. Database migrations
-- `0008_agent_tasks.sql` — **applied ✅** (you did this).
-- If you use Agents / Connections / training logs, confirm `0005`–`0007` are also applied
-  (`supabase db push`, or paste each into the Supabase SQL editor in order).
+
+**Fresh Supabase project (e.g. the new "TrustOps" one):** the error you saw —
+`relation "public.workspaces" does not exist` — means the base tables aren't there yet.
+Migrations build on each other, so 0009 alone can't run first. Fix: paste
+**`supabase/migrations/_combined.sql`** (now covers **0001–0009**) into the SQL Editor
+and run it **once**. It's idempotent — safe to re-run, and safe even if some earlier
+migrations were already applied.
+
+**Existing project that already has 0001–0008:** just run `0009_contacts.sql`.
 
 ## 3. Test the flows live (needs your login — I can't authenticate as you)
 Run `npm run dev`, sign in, then verify:
@@ -35,8 +41,32 @@ Run `npm run dev`, sign in, then verify:
 **Agent loop**
 - [ ] `/tasks` → New task, e.g. *"Research the best CRM for a solo consultant and draft an intro email to a prospect."*
 - [ ] Open it → **Run** → watch it research + draft, then **pause at the email step**.
-- [ ] `/approvals` (or inline on the task) → **Approve** → it resumes and completes; try **Reject** on another to see it stop.
+- [ ] `/approvals` (or inline on the task) → **Approve** → it resumes automatically and completes; try **Reject** on another to see it stop.
+- [ ] Click **Request changes** on an approval → the step is **skipped with a note** (it must NOT perform the action) and the rest of the task continues.
+- [ ] Create a task containing a high-risk word (e.g. *"...and pay the invoice"*) → the approval shows **Approve high-risk…** and needs a second confirm click.
 - [ ] In chat, type a request and click the **task icon** (Delegate as agent task) → lands on the task.
+
+**Real Gmail draft from an approved step** (needs `COMPOSIO_API_KEY` + Gmail connected)
+- [ ] Connect Gmail on `/connections`.
+- [ ] New task: *"Draft a short intro email to yourname+test@gmail.com about our automation offer"* → Run → Approve the email step → check Gmail **Drafts**: the draft should be there. Nothing is sent.
+
+**Contacts** (needs migration `0009_contacts.sql` applied)
+- [ ] `/contacts` → add a contact with a follow-up date of today → a "Follow up" badge appears and the contact floats to the top; **Done today** clears it.
+- [ ] Search by name/company/tag; edit and delete a contact.
+
+**Rate limiting**
+- [ ] Hammer chat with >30 messages in a minute → a friendly "going a little fast" message appears (no crash, no raw error).
+
+**Background tasks (new)**
+- [ ] Run a task → the page returns immediately, the button shows **Running…**, and steps tick off live (polls every 2.5s). Leave the page and come back — progress continued without you.
+- [ ] Approve from `/approvals` → toast says the task resumed in the background.
+
+**Mobile (new — test on your phone, or DevTools device mode)**
+- [ ] A bottom tab bar (Chat / Tasks / Approvals / Contacts / Home) appears on phones with a springy active pill, like a native app.
+- [ ] Content never hides behind the tab bar or the home-indicator area (safe-area padding).
+- [ ] Focusing the chat composer does NOT zoom the page (16px inputs) and the keyboard doesn't cover the composer.
+- [ ] Buttons/links compress slightly when pressed; no grey tap-flash; no rubber-band over-scroll behind the app.
+- [ ] On Android Chrome you feel haptic ticks on: tab taps, send, run task, approve/reject, task completed. (iPhone Safari doesn't expose vibration to websites — Apple limitation, not a bug; everything else works.)
 
 ## 4. Make agent actions *real* (currently simulated — safe by design)
 Approved risky steps are **not actually performed** yet (no real email is sent). To wire real
