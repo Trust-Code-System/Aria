@@ -1,0 +1,11 @@
+[
+  {
+    "_comment": "REPLACE these with 10-20 real questions about documents you actually ingested. Each query passes when at least one expect_phrase appears in the top-5 retrieved chunks.",
+    "query": "What is Aria's approval policy for level 4 actions?",
+    "expect_phrases": ["blocked", "never"]
+  },
+  {
+    "query": "Which database does Aria use for vector search?",
+    "expect_phrases": ["pgvector"]
+  }
+]

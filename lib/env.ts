@@ -31,6 +31,7 @@ export const env = {
   composioBaseUrl: str(process.env.COMPOSIO_BASE_URL) || "https://backend.composio.dev",
   // Per-app auth config ids created in the Composio dashboard.
   composioGmailAuthConfigId: str(process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID),
+  composioGoogleCalendarAuthConfigId: str(process.env.COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID),
   composioGoogleDriveAuthConfigId: str(process.env.COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID),
   composioSlackAuthConfigId: str(process.env.COMPOSIO_SLACK_AUTH_CONFIG_ID),
   composioNotionAuthConfigId: str(process.env.COMPOSIO_NOTION_AUTH_CONFIG_ID),

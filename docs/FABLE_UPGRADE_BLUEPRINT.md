@@ -274,10 +274,11 @@ suggestions surface as a dismissible queue on /memory with per-item provenance (
 ## Part 15 — Master TODO (remaining work only; completed P0/P1 evidence lives in MASTER_UPGRADE_PLAN Part 13)
 
 **P1 — architecture/knowledge/orchestration**
-- [ ] Step checkpoint/resume for `agent_tasks` — steps table already exists; persist executor cursor + inputs hash; resume skips completed steps. *Tests:* interrupt/resume unit + integration. *Risk:* double-execution of side-effecting steps → guard with payload-lock hash idempotency.
-- [ ] Trifecta capability flags in `lib/ai/tools.ts` + policy engine check + 6 adversarial tests (3/3 combos refused/escalated).
-- [ ] Retrieval eval fixtures (10–20 Q/A pairs from your real docs) + CI script reporting citation precision & recall@5. *Blocked by:* live Supabase.
+- [x] Step checkpoint/resume for `agent_tasks` — **done 2026-07-10 (Fable).** Runtime persists each step's `output` + the task's accumulated `result` at every step boundary (`checkpointStep` in `lib/agent/runtime.ts`; migration `0012_step_output_checkpoints.sql`); resume already skipped finished steps, and now no completed work is lost when a task parks for approval or crashes. Side-effect double-execution remains guarded by payload-lock verification. *Evidence:* `npm run typecheck` clean, `npm test` 71/71.
+- [x] Trifecta capability flags — **done 2026-07-10 (Fable).** `lib/agent/trifecta.ts` (pure policy: sticky untrusted-exposure tracking; outward steps escalate to level ≥ 2 once the task read untrusted content), capability flags on every entry in `lib/ai/tools.ts`, enforced in `lib/agent/runtime.ts` (approval cards carry `escalated_reason`). *Evidence:* `tests/trifecta.test.ts` — 13 tests, all passing.
+- [x] Retrieval eval harness — **built 2026-07-10 (Fable).** `npm run eval:retrieval` (`scripts/eval-retrieval.js`, signs in as a real user so RLS applies; skips cleanly without `EVAL_*` env) + `tests/fixtures/retrieval/fixtures.json`. ⚠️ *Live run still pending:* replace placeholder fixtures with 10–20 questions about your real corpus and add `EVAL_USER_EMAIL/PASSWORD/WORKSPACE_ID`.
 - [ ] Provider retry/backoff coverage audit (exists in `lib/net/retry.ts` — extend to embeddings/chat where idempotent only).
+- [x] Connectors enabled — **done 2026-07-10 (Fable).** Real Composio-backed executes in `lib/ai/tools.ts` for gmail_read/gmail_draft/gmail_send, google_calendar (new env `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`), google_drive, slack, notion, github (read-only); each requires an active per-workspace connection, dangerous ones require explicit confirmation, all carry trifecta flags. Browser/postgres/reddit/x stay honest stubs (no safe execution path exists yet). Google Calendar added to the Connections page.
 
 **P2 — personal/business/UX/admin**
 - [ ] Today/daily briefing (page + `briefing` job + scheduler entry point). Depends: jobs (done).
@@ -314,7 +315,7 @@ env flags); B→C requires Redis rate limits + external worker + backup/restore 
 
 ## Part 18 — Immediate next actions
 
-1. Run `supabase/migrations/_combined.sql` (0001–0011) on your Supabase project; then walk `docs/HANDOFF.md` live checklist. **(You — needs your keys; everything else is blocked behind this.)**
+1. ~~Run `supabase/migrations/_combined.sql`~~ **Done — but note:** `_combined.sql` only covered 0001–0009 when you ran it. Paste **`supabase/migrations/_apply_0010_to_0012.sql`** into the Supabase SQL editor once to add the payload-lock columns (0010), hybrid retrieval (0011), and step-output checkpoints (0012). `_combined.sql` now includes all twelve for future fresh installs.
 2. Merge or PR `upgrade/p1-knowledge-memory` → `main` (P0+P1 verified: 58/58 tests, clean typecheck).
 3. Implement Phase A (checkpoints, trifecta flags, eval fixtures) — prompts below.
 4. Decide Gmail/Calendar path: Composio (fastest, already wired) vs official Google MCP (better token custody). Recommendation: **Composio read-only now**, revisit custody at Phase C.

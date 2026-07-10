@@ -20,6 +20,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
 import { runResearch } from "@/lib/ai/research";
 import { classifyStepRisk } from "@/lib/agent/risk";
+import { exposureFromSteps, gateStepForTrifecta } from "@/lib/agent/trifecta";
 import { gateForRiskLevel, resolveApprovalOutcome } from "@/lib/agent/approval-policy";
 import { performApprovedStep } from "@/lib/agent/execute";
 import { lockPayload, payloadPreviewFields, verifyLockedPayload } from "@/lib/agent/payload-lock";
@@ -178,6 +179,27 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
     let executed = steps.filter((s) => s.status === "completed" || s.status === "skipped").length;
     let result = task.result ?? "";
 
+    // Track which steps are done as we go, so lethal-trifecta exposure is
+    // recomputed identically on fresh runs and resumes (pure over step rows).
+    const stepDone = new Map(
+      steps.map((s) => [s.id, s.status === "completed" || s.status === "skipped"] as const),
+    );
+    const exposureNow = () =>
+      exposureFromSteps(
+        steps!.map((s) => ({
+          summary: s.summary,
+          actionType: s.tool_name ?? undefined,
+          done: stepDone.get(s.id) ?? false,
+        })),
+      );
+
+    /** Persist step output + accumulated task result — the resume checkpoint. */
+    const checkpointStep = async (stepId: string, status: "completed" | "skipped", output: string) => {
+      await supabase.from("agent_task_steps").update({ status, output: output.slice(0, 20000) }).eq("id", stepId);
+      await supabase.from("agent_tasks").update({ result }).eq("id", taskId);
+      stepDone.set(stepId, true);
+    };
+
     for (const step of steps) {
       if (step.status === "completed" || step.status === "skipped") continue;
 
@@ -191,18 +213,27 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
       }
 
       const risk = classifyStepRisk(step.summary);
+      // Lethal-trifecta gate: once the task has ingested untrusted content,
+      // outward-facing steps are escalated to approval level >= 2 (sticky).
+      const trifecta = gateStepForTrifecta({
+        baseRisk: risk.riskLevel,
+        actionType: risk.actionType,
+        exposure: exposureNow(),
+      });
+      const effectiveRisk = trifecta.effectiveRisk;
+      const risky = effectiveRisk >= 1;
 
       // Level 4 is BLOCKED by policy: never ask, never execute.
-      if (gateForRiskLevel(risk.riskLevel) === "blocked") {
-        const outcome = resolveApprovalOutcome(risk.riskLevel, null);
+      if (gateForRiskLevel(effectiveRisk) === "blocked") {
+        const outcome = resolveApprovalOutcome(effectiveRisk, null);
         const note = outcome.action === "blocked" ? outcome.note : "Blocked by policy.";
         result += `\n\n### ${step.summary}\n${note}`;
-        await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+        await checkpointStep(step.id, "skipped", note);
         executed += 1;
         continue;
       }
 
-      if (risk.risky) {
+      if (risky) {
         // Look for an existing decision on this step.
         const { data: existing } = await supabase
           .from("approvals")
@@ -216,7 +247,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           const locked = lockPayload({
             version: 1,
             action_type: risk.actionType,
-            risk_level: risk.riskLevel,
+            risk_level: effectiveRisk,
             task_id: taskId,
             step_id: step.id,
             step_idx: step.idx,
@@ -229,7 +260,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
             task_id: taskId,
             step_id: step.id,
             action_type: risk.actionType,
-            risk_level: risk.riskLevel,
+            risk_level: effectiveRisk,
             status: "pending",
             summary: step.summary,
             tool_name: risk.actionType,
@@ -237,7 +268,8 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
             payload_hash: locked.hash,
             safe_metadata: {
               ...payloadPreviewFields(locked.payload),
-              risk_label: RISK_LABELS[risk.riskLevel],
+              risk_label: RISK_LABELS[effectiveRisk],
+              ...(trifecta.escalated ? { escalated_reason: trifecta.reason } : {}),
             },
           });
           await supabase.from("agent_task_steps").update({ status: "running" }).eq("id", step.id);
@@ -252,7 +284,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           .maybeSingle();
 
         const outcome = resolveApprovalOutcome(
-          risk.riskLevel,
+          effectiveRisk,
           (approvalRow?.status ?? existing.status) as Parameters<typeof resolveApprovalOutcome>[1],
         );
 
@@ -261,13 +293,13 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           return { status: "waiting_for_approval", message: "Waiting for your approval." };
         }
         if (outcome.action === "cancel_task") {
-          await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+          await checkpointStep(step.id, "skipped", outcome.note ?? "Rejected.");
           await finishTask(supabase, taskId, "cancelled", result, outcome.note);
           return { status: "cancelled", message: "Action was rejected." };
         }
         if (outcome.action === "skip" || outcome.action === "blocked") {
           result += `\n\n### ${step.summary}\n${outcome.note}`;
-          await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+          await checkpointStep(step.id, "skipped", outcome.note);
           executed += 1;
           continue;
         }
@@ -278,7 +310,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
         );
         if (!verified.ok) {
           result += `\n\n### ${step.summary}\n⛔ ${verified.reason}`;
-          await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+          await checkpointStep(step.id, "skipped", `⛔ ${verified.reason}`);
           await finishTask(supabase, taskId, "failed", result, verified.reason);
           return { status: "failed", message: verified.reason };
         }
@@ -291,7 +323,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           ctx,
         );
         result += `\n\n### ${verified.payload.summary}\n${performed.note}`;
-        await supabase.from("agent_task_steps").update({ status: "completed" }).eq("id", step.id);
+        await checkpointStep(step.id, "completed", performed.note);
         executed += 1;
         continue;
       }
@@ -300,10 +332,7 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
       await supabase.from("agent_task_steps").update({ status: "running" }).eq("id", step.id);
       const output = await executeSafeStep(task, step);
       result += `\n\n### ${step.summary}\n${output}`;
-      await supabase
-        .from("agent_task_steps")
-        .update({ status: "completed" })
-        .eq("id", step.id);
+      await checkpointStep(step.id, "completed", output);
       executed += 1;
       await supabase
         .from("agent_tasks")

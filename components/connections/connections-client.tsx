@@ -38,9 +38,10 @@ interface IntegrationApp {
 
 const APPS: IntegrationApp[] = [
   { provider: "gmail", name: "Gmail", logo: "M", logoUrl: "https://cdn.simpleicons.org/gmail", category: "Email", accent: "#ea4335", desc: "Read, triage, draft, and send email with confirmation." },
+  { provider: "google_calendar", name: "Google Calendar", logo: "C", logoUrl: "https://cdn.simpleicons.org/googlecalendar", category: "Calendar", accent: "#4285f4", desc: "Read your agenda and create events with confirmation." },
   { provider: "google_drive", name: "Google Drive", logo: "D", logoUrl: "https://cdn.simpleicons.org/googledrive", category: "Files", accent: "#34a853", desc: "Search files, reference docs, and pull workspace context." },
   { provider: "slack", name: "Slack", logo: "S", logoUrl: "https://api.iconify.design/logos:slack-icon.svg", category: "Team chat", accent: "#611f69", desc: "Summarize channels, draft replies, and prepare updates." },
-  { provider: "notion", name: "Notion", logo: "N", logoUrl: "https://cdn.simpleicons.org/notion", category: "Knowledge", accent: "#f4efe6", desc: "Read pages, create notes, and organize project knowledge." },
+  { provider: "notion", name: "Notion", logo: "N", logoUrl: "https://cdn.simpleicons.org/notion", category: "Knowledge", accent: "#111827", desc: "Read pages, create notes, and organize project knowledge." },
   { provider: "github", name: "GitHub", logo: "GH", logoUrl: "https://cdn.simpleicons.org/github", category: "Code", accent: "#c9c2b7", desc: "Inspect issues, pull requests, repositories, and release notes." },
   { provider: "linear", name: "Linear", logo: "L", logoUrl: "https://cdn.simpleicons.org/linear", category: "Issues", accent: "#8b5cf6", desc: "Create, search, and update product and engineering issues." },
   { provider: "jira", name: "Jira", logo: "J", logoUrl: "https://cdn.simpleicons.org/jira", category: "Issues", accent: "#2684ff", desc: "Track tickets, sprint work, blockers, and project status." },

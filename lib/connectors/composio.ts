@@ -138,6 +138,7 @@ export async function executeTool<T = any>(params: {
 export function authConfigIdFor(provider: string): string {
   const map: Record<string, string> = {
     gmail: env.composioGmailAuthConfigId,
+    google_calendar: env.composioGoogleCalendarAuthConfigId,
     google_drive: env.composioGoogleDriveAuthConfigId,
     slack: env.composioSlackAuthConfigId,
     notion: env.composioNotionAuthConfigId,

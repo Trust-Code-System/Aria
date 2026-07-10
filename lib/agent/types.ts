@@ -68,6 +68,8 @@ export interface AgentTaskStep {
   status: StepStatus;
   summary: string;
   tool_name: string | null;
+  /** Persisted step output — the resume checkpoint (migration 0012). */
+  output?: string | null;
   created_at: string;
   updated_at: string;
 }

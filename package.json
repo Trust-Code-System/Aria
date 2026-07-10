@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:retrieval": "node scripts/eval-retrieval.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.51",

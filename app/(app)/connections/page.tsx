@@ -29,6 +29,7 @@ export default async function ConnectionsPage() {
         connectorsEnabled={configured.connectors}
         configuredProviders={{
           gmail: Boolean(env.composioGmailAuthConfigId),
+          google_calendar: Boolean(env.composioGoogleCalendarAuthConfigId),
           google_drive: Boolean(env.composioGoogleDriveAuthConfigId),
           slack: Boolean(env.composioSlackAuthConfigId),
           notion: Boolean(env.composioNotionAuthConfigId),
