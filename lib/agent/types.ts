@@ -84,6 +84,10 @@ export interface Approval {
   summary: string;
   tool_name: string | null;
   safe_metadata: Record<string, unknown>;
+  /** Canonical JSON locked at gate time (LITL). */
+  payload_canonical: string | null;
+  /** SHA-256 of payload_canonical. */
+  payload_hash: string | null;
   created_at: string;
   decided_at: string | null;
   decided_by: string | null;

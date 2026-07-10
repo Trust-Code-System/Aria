@@ -43,7 +43,7 @@ export const env = {
   composioSalesforceAuthConfigId: str(process.env.COMPOSIO_SALESFORCE_AUTH_CONFIG_ID),
   composioOutlookAuthConfigId: str(process.env.COMPOSIO_OUTLOOK_AUTH_CONFIG_ID),
 
-  defaultChatModel: str(process.env.DEFAULT_CHAT_MODEL) || "openai:gpt-4o-mini",
+  defaultChatModel: str(process.env.DEFAULT_CHAT_MODEL) || "openai:gpt-5.6",
   defaultEmbeddingModel:
     str(process.env.DEFAULT_EMBEDDING_MODEL) || "openai:text-embedding-3-small",
   defaultResearchModel: str(process.env.DEFAULT_RESEARCH_MODEL) || "perplexity:sonar",
@@ -54,6 +54,23 @@ export const env = {
     .filter(Boolean),
 
   maxUploadMb: Number(str(process.env.MAX_UPLOAD_MB) || "25"),
+
+  /**
+   * Opt-in continuous distillation. Off by default — full prompts are sensitive.
+   * Set LLM_TRAINING_LOGS_ENABLED=true to write llm_training_logs rows.
+   */
+  llmTrainingLogsEnabled: ["1", "true", "yes"].includes(
+    str(process.env.LLM_TRAINING_LOGS_ENABLED).toLowerCase(),
+  ),
+  /** Days to retain training logs when enabled. 0 = keep forever (not recommended). */
+  llmTrainingLogsTtlDays: Math.max(0, Number(str(process.env.LLM_TRAINING_LOGS_TTL_DAYS) || "30")),
+
+  /**
+   * When true (default), enqueued jobs are also kicked inline after insert so
+   * local/dev stays snappy. Set JOBS_INLINE=false when a real worker/cron drains
+   * /api/jobs/drain instead (serverless-safe path).
+   */
+  jobsInline: !["0", "false", "no"].includes(str(process.env.JOBS_INLINE).toLowerCase()),
 };
 
 export const configured = {

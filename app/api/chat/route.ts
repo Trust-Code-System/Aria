@@ -12,6 +12,7 @@ import { apiError } from "@/lib/api";
 import { AppError, configMissing } from "@/lib/errors";
 import { logError } from "@/lib/logging/error-log";
 import { truncate } from "@/lib/utils";
+import { env } from "@/lib/env";
 import type { Citation } from "@/lib/ai/types";
 
 export const runtime = "nodejs";
@@ -217,16 +218,18 @@ export async function POST(req: Request) {
           }
           await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId);
 
-          // Continuous Distillation: Log the interaction for personal model training
-          await supabase.from("llm_training_logs").insert({
-            workspace_id: workspaceId,
-            user_id: userId,
-            project_id: projectId ?? null,
-            model_id: modelId,
-            system_prompt: system,
-            messages_json: priorMessages,
-            response_text: text,
-          });
+          // Continuous Distillation: opt-in only (LLM_TRAINING_LOGS_ENABLED).
+          if (env.llmTrainingLogsEnabled) {
+            await supabase.from("llm_training_logs").insert({
+              workspace_id: workspaceId,
+              user_id: userId,
+              project_id: projectId ?? null,
+              model_id: modelId,
+              system_prompt: system,
+              messages_json: priorMessages,
+              response_text: text,
+            });
+          }
 
         } catch (e) {
           await logError({ area: "chat", error: e, workspaceId, userId });

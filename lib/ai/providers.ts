@@ -11,6 +11,19 @@ import { configMissing, type FeatureArea } from "@/lib/errors";
  */
 export type ProviderName = "openai" | "anthropic" | "google" | "perplexity" | "custom";
 
+/** Current production-ready chat models, centralized to avoid stale fallbacks. */
+export const LATEST_CHAT_MODELS = {
+  openai: "openai:gpt-5.6",
+  google: "google:gemini-3.5-flash",
+  anthropic: "anthropic:claude-opus-4-8",
+} as const;
+
+const RETIRED_MODEL_REPLACEMENTS: Record<string, string> = {
+  "google:gemini-2.5-flash": LATEST_CHAT_MODELS.google,
+  "openai:gpt-4o-mini": LATEST_CHAT_MODELS.openai,
+  "anthropic:claude-3-5-sonnet-latest": LATEST_CHAT_MODELS.anthropic,
+};
+
 export function parseModelId(id: string): { provider: ProviderName; model: string } {
   const [provider, ...rest] = id.split(":");
   const model = rest.join(":");
@@ -19,6 +32,11 @@ export function parseModelId(id: string): { provider: ProviderName; model: strin
     return { provider: "openai", model: id };
   }
   return { provider: provider as ProviderName, model };
+}
+
+/** Translate known retired provider identifiers before issuing a request. */
+export function upgradeRetiredModelId(id: string): string {
+  return RETIRED_MODEL_REPLACEMENTS[id] ?? id;
 }
 
 /** Which providers currently have a usable key. Powers the settings UI. */
@@ -76,14 +94,17 @@ export function getChatModel(modelId?: string, area: FeatureArea = "chat"): Lang
 
 /** Pick the best available chat model if the default's key is missing. */
 export function resolveUsableChatModelId(preferred?: string): string | null {
-  const id = preferred || env.defaultChatModel;
+  const configuredId = preferred || env.defaultChatModel;
+  // Existing .env.local files can keep a retired default. Upgrade the known
+  // identifiers at runtime so a deploy does not need a manual env change.
+  const id = upgradeRetiredModelId(configuredId);
   const { provider } = parseModelId(id);
   const avail = availableProviders();
   if (avail[provider]) return id;
 
-  if (avail.google) return "google:gemini-2.5-flash";
-  if (avail.openai) return "openai:gpt-4o-mini";
-  if (avail.anthropic) return "anthropic:claude-3-5-sonnet-latest";
+  if (avail.openai) return LATEST_CHAT_MODELS.openai;
+  if (avail.google) return LATEST_CHAT_MODELS.google;
+  if (avail.anthropic) return LATEST_CHAT_MODELS.anthropic;
   return null;
 }
 

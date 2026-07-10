@@ -4,7 +4,7 @@ import { validateCitations } from "@/lib/ai/rag";
 import { sanitizeForLog, sanitizeFilename, validateFile } from "@/lib/security/sanitize";
 import { renderRetrievedContext } from "@/lib/ai/prompts";
 import { mdToHtml } from "@/lib/reports/pdf";
-import { parseModelId } from "@/lib/ai/providers";
+import { LATEST_CHAT_MODELS, parseModelId, upgradeRetiredModelId } from "@/lib/ai/providers";
 
 describe("chunking", () => {
   it("splits long text into multiple bounded chunks", () => {
@@ -85,5 +85,18 @@ describe("provider model id parsing", () => {
   });
   it("falls back to openai when no prefix", () => {
     expect(parseModelId("gpt-4o-mini")).toEqual({ provider: "openai", model: "gpt-4o-mini" });
+  });
+
+  it("publishes current provider defaults", () => {
+    expect(LATEST_CHAT_MODELS).toEqual({
+      openai: "openai:gpt-5.6",
+      google: "google:gemini-3.5-flash",
+      anthropic: "anthropic:claude-opus-4-8",
+    });
+  });
+
+  it("upgrades retired provider model identifiers", () => {
+    expect(upgradeRetiredModelId("google:gemini-2.5-flash")).toBe("google:gemini-3.5-flash");
+    expect(upgradeRetiredModelId("openai:gpt-5.6")).toBe("openai:gpt-5.6");
   });
 });

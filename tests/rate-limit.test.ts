@@ -35,4 +35,10 @@ describe("rateLimit", () => {
     for (let i = 0; i < RATE_LIMITS.research.limit; i++) rateLimit("research", "user-1");
     expect(() => rateLimit("chat", "user-1")).not.toThrow();
   });
+
+  it("rate-limits ingest separately from upload", () => {
+    for (let i = 0; i < RATE_LIMITS.ingest.limit; i++) rateLimit("ingest", "user-1");
+    expect(() => rateLimit("ingest", "user-1")).toThrow(AppError);
+    expect(() => rateLimit("upload", "user-1")).not.toThrow();
+  });
 });

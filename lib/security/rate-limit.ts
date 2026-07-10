@@ -32,8 +32,10 @@ export const RATE_LIMITS = {
   chat: { limit: 30, windowMs: 60_000 }, // 30 msgs/min
   research: { limit: 10, windowMs: 60_000 },
   upload: { limit: 20, windowMs: 60_000 },
+  ingest: { limit: 15, windowMs: 60_000 },
   taskRun: { limit: 10, windowMs: 60_000 },
   email: { limit: 10, windowMs: 60_000 },
+  jobs: { limit: 30, windowMs: 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 /**
@@ -58,8 +60,17 @@ export function rateLimit(area: keyof typeof RATE_LIMITS, userId: string): void 
 
   if (bucket.hits.length >= rule.limit) {
     const retryInSec = Math.ceil((rule.windowMs - (now - bucket.hits[0])) / 1000);
+    const areaMap = {
+      chat: "chat",
+      upload: "upload",
+      ingest: "ingestion",
+      research: "research",
+      taskRun: "tasks",
+      email: "tools",
+      jobs: "tasks",
+    } as const;
     throw new AppError({
-      area: area === "chat" ? "chat" : area === "upload" ? "upload" : "tools",
+      area: areaMap[area],
       category: "rate_limit",
       statusCode: 429,
       userMessage: `You're going a little fast — please wait ~${retryInSec}s and try again.`,

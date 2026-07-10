@@ -4,9 +4,9 @@ import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { sanitizeFilename, validateFile, getExtension } from "@/lib/security/sanitize";
 import { rateLimit } from "@/lib/security/rate-limit";
-import { ingestDocument } from "@/lib/ingestion/pipeline";
 import { logAudit } from "@/lib/logging/error-log";
 import { configured } from "@/lib/env";
+import { enqueueAndKick } from "@/lib/jobs/enqueue";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -103,20 +103,26 @@ export async function POST(req: Request) {
       metadata: { filename: safeName, ext },
     });
 
-    // 3. Ingest inline (extract → chunk → embed → store).
-    const result = await ingestDocument({
-      documentId: doc.id,
+    // 3. Enqueue ingestion (jobs table) and run inline when JOBS_INLINE=true.
+    const { jobId, result } = await enqueueAndKick({
+      kind: "ingest",
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
-      projectId,
+      refId: doc.id,
+      email: ctx.email,
+      isAdmin: ctx.isAdmin,
+      payload: { projectId },
+      idempotencyKey: `ingest:${doc.id}`,
+      wait: true,
     });
 
     return apiOk({
       documentId: doc.id,
       filename: safeName,
-      status: result.status,
-      chunkCount: result.chunkCount,
-      message: result.message,
+      jobId,
+      status: result?.status ?? "queued",
+      chunkCount: result?.chunkCount ?? 0,
+      message: result?.message ?? "Upload saved — ingestion queued.",
     });
   } catch (error) {
     return apiError(error, {

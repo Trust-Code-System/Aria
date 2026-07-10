@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { configured } from "@/lib/env";
 
 /**
- * Login — Stitch "Aria Glass" visual design, wired to real Supabase auth.
- * Email/password sign-in + sign-up toggle. Redirects to the workspace on success.
+ * Passwordless entry for this personal workspace. The signed email link keeps
+ * the Supabase database session intact without asking the owner for a password.
  */
 export default function LoginPage() {
   return (
@@ -19,15 +19,12 @@ export default function LoginPage() {
 }
 
 function LoginInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/chat";
   const { error: toastError, success } = useToast();
-
-  const [mode, setMode] = React.useState<"signin" | "signup">("signin");
   const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [linkSent, setLinkSent] = React.useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,27 +32,22 @@ function LoginInner() {
       toastError("Setup required", "Add your Supabase keys to .env.local.");
       return;
     }
+
     setLoading(true);
-    const supabase = createClient();
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/chat` },
-        });
-        if (error) throw error;
-        success("Account created", "You can sign in now.");
-        setMode("signin");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        router.push(next);
-        router.refresh();
-      }
+      const { error } = await createClient().auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}${next}`,
+          shouldCreateUser: true,
+        },
+      });
+      if (error) throw error;
+      setLinkSent(true);
+      success("Check your inbox", "Open the secure link to enter Aria.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed.";
-      toastError("Could not sign you in", friendly(msg));
+      toastError("Could not send your sign-in link", friendly(msg));
     } finally {
       setLoading(false);
     }
@@ -85,7 +77,7 @@ function LoginInner() {
           </div>
           <h1 className="font-display-lg text-display-lg text-on-surface mb-sm tracking-tight">Welcome to Aria</h1>
           <p className="font-body-sm text-body-sm text-on-surface-variant">
-            {mode === "signup" ? "Create your premium AI workspace." : "Sign in to your premium AI workspace."}
+            Your private AI workspace, without a password.
           </p>
         </div>
 
@@ -108,33 +100,12 @@ function LoginInner() {
                   className="w-full bg-surface-container-lowest border border-outline-variant rounded-[10px] py-md pl-[44px] pr-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
                   id="email"
                   name="email"
-                  placeholder="name@company.com"
+                  placeholder="you@example.com"
                   required
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-sm">
-                <label className="block font-label-md text-label-md text-on-surface" htmlFor="password">Password</label>
-              </div>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-on-surface-variant">
-                  <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>lock</span>
-                </span>
-                <input
-                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-[10px] py-md pl-[44px] pr-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200"
-                  id="password"
-                  name="password"
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
             </div>
@@ -145,7 +116,7 @@ function LoginInner() {
                 type="submit"
                 disabled={loading}
               >
-                <span>{loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign In"}</span>
+                <span>{loading ? "Sending link…" : linkSent ? "Send another sign-in link" : "Send me a sign-in link"}</span>
                 {!loading && (
                   <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>arrow_forward</span>
                 )}
@@ -154,25 +125,15 @@ function LoginInner() {
           </form>
         )}
 
-        <div className="mt-xl text-center relative z-10">
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            {mode === "signup" ? "Already have an account?" : "New to Aria?"}{" "}
-            <button
-              type="button"
-              onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
-              className="text-primary hover:text-primary-fixed font-medium transition-colors duration-200 underline decoration-transparent hover:decoration-primary-fixed underline-offset-4"
-            >
-              {mode === "signup" ? "Sign in" : "Create an account"}
-            </button>
-          </p>
-        </div>
+        <p className="mt-xl text-center text-sm text-on-surface-variant relative z-10">
+          We use a one-time link to keep your personal data private. No password to remember.
+        </p>
       </div>
     </div>
   );
 }
 
 function friendly(msg: string): string {
-  if (/invalid login/i.test(msg)) return "Email or password is incorrect.";
-  if (/already registered/i.test(msg)) return "That email is already registered — try signing in.";
+  if (/rate limit/i.test(msg)) return "Too many links were requested. Please wait a moment and try again.";
   return msg;
 }

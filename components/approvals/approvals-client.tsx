@@ -98,12 +98,19 @@ export function ApprovalsClient({ initial }: { initial: Approval[] }) {
 
             <p className="mt-2 font-medium">{a.summary}</p>
 
+            {/* Structured preview only — never render agent markdown as trusted HTML. */}
+            {a.payload_hash && (
+              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                Locked payload · sha256:{a.payload_hash.slice(0, 12)}…
+              </p>
+            )}
+
             {meta.length > 0 && (
               <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
                 {meta.map(([k, v]) => (
                   <React.Fragment key={k}>
                     <dt className="text-muted-foreground">{k}</dt>
-                    <dd className="min-w-0 truncate">{String(v)}</dd>
+                    <dd className="min-w-0 truncate font-mono text-xs">{String(v)}</dd>
                   </React.Fragment>
                 ))}
               </dl>

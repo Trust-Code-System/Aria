@@ -3,7 +3,8 @@ import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
-import { ingestDocument } from "@/lib/ingestion/pipeline";
+import { rateLimit } from "@/lib/security/rate-limit";
+import { enqueueAndKick } from "@/lib/jobs/enqueue";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
+    rateLimit("ingest", ctx.userId);
     const { documentId } = schema.parse(await req.json());
     const supabase = createServerSupabase();
 
@@ -34,14 +36,21 @@ export async function POST(req: Request) {
       });
     }
 
-    const result = await ingestDocument({
-      documentId,
+    const { jobId, result } = await enqueueAndKick({
+      kind: "ingest",
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
-      projectId: doc.project_id,
+      refId: documentId,
+      payload: { projectId: doc.project_id },
+      wait: true,
     });
 
-    return apiOk({ status: result.status, chunkCount: result.chunkCount, message: result.message });
+    return apiOk({
+      jobId,
+      status: result?.status ?? "queued",
+      chunkCount: result?.chunkCount ?? 0,
+      message: result?.message ?? "Ingestion queued.",
+    });
   } catch (error) {
     return apiError(error, { area: "ingestion", workspaceId: ctx?.workspaceId, userId: ctx?.userId });
   }

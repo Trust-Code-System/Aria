@@ -9,8 +9,8 @@ Ordered by priority. Nothing here blocks the MVP acceptance criteria; these hard
 - [ ] Confirm `match_document_chunks` returns rows (embedding text-literal cast works as expected).
 
 ## P2 — Robustness
-- [ ] Rate-limit `/api/chat`, `/api/upload`, `/api/research` (per-user token bucket or `jobs` counter).
-- [ ] Move ingestion to the `jobs` queue + a background worker (Edge Function / cron) for large files.
+- [x] Rate-limit `/api/chat`, `/api/upload`, `/api/research` (and ingest/jobs) — done in P0 on `upgrade/p0-foundation`.
+- [x] Move ingestion to the `jobs` queue + inline/drain worker — done in P0 (`lib/jobs/enqueue.ts`). External Trigger.dev still optional.
 - [ ] Add retry/backoff around provider calls (embeddings, chat, research).
 - [ ] Stream research results through the model with tool-style progress instead of one blocking call.
 

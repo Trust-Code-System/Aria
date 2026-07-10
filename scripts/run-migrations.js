@@ -29,6 +29,10 @@ const MIGRATIONS = [
   "supabase/migrations/0004_storage.sql",
   "supabase/migrations/0005_agents.sql",
   "supabase/migrations/0006_training_logs.sql",
+  "supabase/migrations/0007_connections.sql",
+  "supabase/migrations/0008_agent_tasks.sql",
+  "supabase/migrations/0009_contacts.sql",
+  "supabase/migrations/0010_p0_jobs_and_payload_lock.sql",
 ];
 
 async function testConnection() {

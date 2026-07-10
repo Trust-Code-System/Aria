@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { MessageItem, type ChatMessage, type ChatAttachment } from "@/components/chat/message-item";
 import { ModeSelector, type Mode } from "@/components/chat/mode-selector";
+import { BackButton } from "@/components/navigation/back-button";
 import { EmptyState } from "@/components/ui/states";
 import type { Citation } from "@/lib/ai/types";
 import { continueList } from "@/lib/editor/list-continuation";
@@ -348,6 +349,13 @@ export function Chat({
 
   return (
     <div className="flex h-full flex-col">
+      {conversationId && (
+        <div className="border-b border-outline-variant bg-background/70 px-4 py-2.5 backdrop-blur-xl sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <BackButton fallback="/chat" />
+          </div>
+        </div>
+      )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6">
         <div className="mx-auto max-w-3xl">
           {messages.length === 0 ? (

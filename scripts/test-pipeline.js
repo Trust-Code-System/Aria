@@ -346,7 +346,7 @@ async function main() {
 RETRIEVED CONTEXT:
 ${contextBlock}`;
     
-    const chatModel = process.env.DEFAULT_CHAT_MODEL || "google:gemini-2.5-flash";
+    const chatModel = process.env.DEFAULT_CHAT_MODEL || "google:gemini-3.5-flash";
     const [chatProvider, chatModelName] = chatModel.split(":");
     
     let llmResponse;

@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/auth/guards";
 import { PageShell } from "@/components/page-shell";
 import { Card, Badge } from "@/components/ui/primitives";
 import { env, configured } from "@/lib/env";
-import { availableProviders } from "@/lib/ai/providers";
+import { availableProviders, LATEST_CHAT_MODELS } from "@/lib/ai/providers";
 import { researchProviderAvailable } from "@/lib/ai/research";
 import { TOOL_REGISTRY } from "@/lib/ai/tools";
 import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
@@ -70,6 +70,12 @@ export default async function SettingsPage() {
               <code className="text-xs">{env.defaultResearchModel}</code>
             </div>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground">Current provider models used by Aria:</p>
+          <div className="mt-2 space-y-1.5 text-xs">
+            <ModelRow label="OpenAI" model={LATEST_CHAT_MODELS.openai} />
+            <ModelRow label="Google Gemini" model={LATEST_CHAT_MODELS.google} />
+            <ModelRow label="Anthropic Claude" model={LATEST_CHAT_MODELS.anthropic} />
+          </div>
         </Card>
 
         <Card className="p-5">
@@ -124,5 +130,14 @@ export default async function SettingsPage() {
         </div>
       </Card>
     </PageShell>
+  );
+}
+
+function ModelRow({ label, model }: { label: string; model: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
+      <span className="font-medium">{label}</span>
+      <code className="text-right text-[11px] text-muted-foreground">{model}</code>
+    </div>
   );
 }

@@ -22,9 +22,11 @@ import { runResearch } from "@/lib/ai/research";
 import { classifyStepRisk } from "@/lib/agent/risk";
 import { gateForRiskLevel, resolveApprovalOutcome } from "@/lib/agent/approval-policy";
 import { performApprovedStep } from "@/lib/agent/execute";
+import { lockPayload, payloadPreviewFields, verifyLockedPayload } from "@/lib/agent/payload-lock";
 import { RISK_LABELS } from "@/lib/agent/types";
 import type { AgentTask, AgentTaskStep } from "@/lib/agent/types";
 import { logError } from "@/lib/logging/error-log";
+import { enqueueAndKick } from "@/lib/jobs/enqueue";
 
 type Supabase = ReturnType<typeof createServerSupabase>;
 
@@ -105,15 +107,20 @@ export interface RunResult {
 const TASK_WALL_CLOCK_MS = 4 * 60_000;
 
 /**
- * Start a task in the background (fire-and-forget) and return immediately.
- * The UI polls the task for live status. Failures are logged, never thrown.
- *
- * Note: relies on a long-lived Node server (`next dev`/`next start`). On
- * scale-to-zero serverless the work could be cut off — move to a real queue
- * before deploying there.
+ * Start a task via the durable jobs table (then kick inline when JOBS_INLINE).
+ * Prefer this over a bare void runTask() so work is visible and drainable.
  */
 export function startTaskInBackground(taskId: string, ctx: SessionContext): void {
-  void runTask(taskId, ctx).catch(async (err) => {
+  void enqueueAndKick({
+    kind: "agent_task",
+    workspaceId: ctx.workspaceId,
+    userId: ctx.userId,
+    refId: taskId,
+    email: ctx.email,
+    isAdmin: ctx.isAdmin,
+    idempotencyKey: `agent_task:${taskId}:run`,
+    wait: false,
+  }).catch(async (err) => {
     await logError({ area: "tasks", error: err, workspaceId: ctx.workspaceId, userId: ctx.userId });
   });
 }
@@ -206,6 +213,16 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           .maybeSingle();
 
         if (!existing) {
+          const locked = lockPayload({
+            version: 1,
+            action_type: risk.actionType,
+            risk_level: risk.riskLevel,
+            task_id: taskId,
+            step_id: step.id,
+            step_idx: step.idx,
+            summary: step.summary,
+            tool_name: risk.actionType,
+          });
           await supabase.from("approvals").insert({
             workspace_id: ctx.workspaceId,
             user_id: ctx.userId,
@@ -216,15 +233,27 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
             status: "pending",
             summary: step.summary,
             tool_name: risk.actionType,
-            safe_metadata: { step: step.idx, risk: RISK_LABELS[risk.riskLevel] },
+            payload_canonical: locked.canonical,
+            payload_hash: locked.hash,
+            safe_metadata: {
+              ...payloadPreviewFields(locked.payload),
+              risk_label: RISK_LABELS[risk.riskLevel],
+            },
           });
           await supabase.from("agent_task_steps").update({ status: "running" }).eq("id", step.id);
           await supabase.from("agent_tasks").update({ status: "waiting_for_approval", current_step: step.idx }).eq("id", taskId);
           return { status: "waiting_for_approval", message: "Waiting for your approval." };
         }
+        // Load full approval (incl. payload lock) for execute path.
+        const { data: approvalRow } = await supabase
+          .from("approvals")
+          .select("id, status, payload_canonical, payload_hash, action_type")
+          .eq("id", existing.id)
+          .maybeSingle();
+
         const outcome = resolveApprovalOutcome(
           risk.riskLevel,
-          existing.status as Parameters<typeof resolveApprovalOutcome>[1],
+          (approvalRow?.status ?? existing.status) as Parameters<typeof resolveApprovalOutcome>[1],
         );
 
         if (outcome.action === "wait") {
@@ -242,12 +271,26 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
           executed += 1;
           continue;
         }
-        // outcome.action === "execute" — the ONLY path that performs the action.
-        // Email actions create a real Gmail DRAFT when Gmail is connected (never
-        // an auto-send); everything else records an honest simulation note.
+        // outcome.action === "execute" — verify locked payload before any side effect.
+        const verified = verifyLockedPayload(
+          approvalRow?.payload_canonical,
+          approvalRow?.payload_hash,
+        );
+        if (!verified.ok) {
+          result += `\n\n### ${step.summary}\n⛔ ${verified.reason}`;
+          await supabase.from("agent_task_steps").update({ status: "skipped" }).eq("id", step.id);
+          await finishTask(supabase, taskId, "failed", result, verified.reason);
+          return { status: "failed", message: verified.reason };
+        }
         await supabase.from("agent_task_steps").update({ status: "running" }).eq("id", step.id);
-        const performed = await performApprovedStep(task, step, risk.actionType, result, ctx);
-        result += `\n\n### ${step.summary}\n${performed.note}`;
+        const performed = await performApprovedStep(
+          task,
+          step,
+          verified.payload.action_type,
+          result,
+          ctx,
+        );
+        result += `\n\n### ${verified.payload.summary}\n${performed.note}`;
         await supabase.from("agent_task_steps").update({ status: "completed" }).eq("id", step.id);
         executed += 1;
         continue;
