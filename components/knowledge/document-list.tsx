@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileText, RotateCw, Trash2 } from "lucide-react";
+import { FileText, RotateCw, Trash2, ExternalLink } from "lucide-react";
 import { Badge, Spinner } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { formatRelative, bytesToSize } from "@/lib/utils";
@@ -37,6 +37,20 @@ export function DocumentList({ docs }: { docs: DocRow[] }) {
   const router = useRouter();
   const { success, error } = useToast();
   const [busy, setBusy] = React.useState<string | null>(null);
+
+  async function preview(id: string) {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/documents/${id}/preview`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      error("Preview unavailable", e instanceof Error ? e.message : undefined);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function retry(id: string) {
     setBusy(id);
@@ -90,6 +104,16 @@ export function DocumentList({ docs }: { docs: DocRow[] }) {
           </div>
           {statusBadge(d.ingestion_status)}
           <div className="flex items-center gap-1">
+            {d.ingestion_status === "completed" && (
+              <button
+                onClick={() => preview(d.id)}
+                disabled={busy === d.id}
+                className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+                title="Preview file"
+              >
+                {busy === d.id ? <Spinner /> : <ExternalLink className="h-4 w-4" />}
+              </button>
+            )}
             {(d.ingestion_status === "failed" || d.ingestion_status === "pending") && (
               <button
                 onClick={() => retry(d.id)}

@@ -3,15 +3,17 @@ import { embedText } from "@/lib/ai/embeddings";
 import type { RetrievedChunk } from "@/lib/ai/types";
 
 /**
- * Retrieval-augmented generation core. Embeds the query and asks Postgres
- * (pgvector) for the most similar chunks, scoped to the workspace (and project
- * if provided). RLS + the RPC's membership check enforce isolation.
+ * Retrieval-augmented generation core. Prefers hybrid (vector + keyword RRF)
+ * via `hybrid_match_document_chunks`; falls back to pure vector RPC if the
+ * hybrid migration is not applied yet.
  */
 export interface RetrieveOptions {
   workspaceId: string;
   projectId?: string | null;
   matchCount?: number;
   similarityThreshold?: number;
+  /** When false, skip keyword fusion (vector only). Default true. */
+  hybrid?: boolean;
 }
 
 export async function retrieveChunks(
@@ -20,20 +22,41 @@ export async function retrieveChunks(
   opts: RetrieveOptions,
 ): Promise<RetrievedChunk[]> {
   const embedding = await embedText(query);
-
-  const { data, error } = await supabase.rpc("match_document_chunks", {
-    // pgvector accepts the JSON number[] and casts to vector(1536).
+  const useHybrid = opts.hybrid !== false;
+  const params = {
     query_embedding: JSON.stringify(embedding),
     match_workspace_id: opts.workspaceId,
     match_project_id: opts.projectId ?? null,
     match_count: opts.matchCount ?? 8,
     similarity_threshold: opts.similarityThreshold ?? 0.15,
-  });
+  };
 
+  if (useHybrid) {
+    const { data, error } = await supabase.rpc("hybrid_match_document_chunks", {
+      ...params,
+      query_text: query.slice(0, 2000),
+    });
+    if (!error) return (data ?? []) as RetrievedChunk[];
+    // Fallback when migration 0011 is not applied yet.
+    if (!isMissingRpc(error)) {
+      throw new Error(`Hybrid search failed: ${error.message}`);
+    }
+  }
+
+  const { data, error } = await supabase.rpc("match_document_chunks", params);
   if (error) {
     throw new Error(`Vector search failed: ${error.message}`);
   }
   return (data ?? []) as RetrievedChunk[];
+}
+
+function isMissingRpc(error: { message?: string; code?: string }): boolean {
+  const msg = (error.message ?? "").toLowerCase();
+  return (
+    error.code === "PGRST202" ||
+    msg.includes("could not find the function") ||
+    msg.includes("hybrid_match_document_chunks")
+  );
 }
 
 /**
@@ -60,4 +83,22 @@ export function validateCitations(
   const cited = unique.filter((n) => n >= 1 && n <= sourceCount);
   const invalid = unique.filter((n) => n < 1 || n > sourceCount);
   return { cited, invalid };
+}
+
+/**
+ * Reciprocal rank fusion for unit tests / offline eval (mirrors SQL RRF k=60).
+ */
+export function reciprocalRankFusion(
+  rankedLists: string[][],
+  k = 60,
+): { id: string; score: number }[] {
+  const scores = new Map<string, number>();
+  for (const list of rankedLists) {
+    list.forEach((id, idx) => {
+      scores.set(id, (scores.get(id) ?? 0) + 1 / (k + idx + 1));
+    });
+  }
+  return Array.from(scores.entries())
+    .map(([id, score]) => ({ id, score }))
+    .sort((a, b) => b.score - a.score);
 }

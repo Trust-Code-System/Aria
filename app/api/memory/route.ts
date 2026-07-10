@@ -3,6 +3,7 @@ import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
+import { looksLikeSecret } from "@/lib/ai/memory-safety";
 
 export const runtime = "nodejs";
 
@@ -20,15 +21,12 @@ const updateSchema = z.object({
   type: z.enum(["preference", "project_fact", "writing_style", "tool_preference", "workflow"]).optional(),
 });
 
-// Never store obvious secrets as memory.
-const SECRETY = /(password|api[_-]?key|secret|token|ssn|credit\s?card|cvv)/i;
-
 export async function POST(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
     const body = createSchema.parse(await req.json());
-    if (SECRETY.test(body.content)) {
+    if (looksLikeSecret(body.content)) {
       throw new AppError({
         area: "memory",
         category: "validation",

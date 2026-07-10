@@ -41,12 +41,13 @@ export function MemoryClient({
   const [content, setContent] = React.useState("");
   const [type, setType] = React.useState<string>("preference");
   const [projectId, setProjectId] = React.useState<string>("");
-  const [filter, setFilter] = React.useState<"all" | "global" | "project">("all");
+  const [filter, setFilter] = React.useState<"all" | "global" | "project" | "suggested">("all");
   const [busy, setBusy] = React.useState<string | null>(null);
 
   const filtered = initial.filter((m) => {
     if (filter === "global") return m.project_id === null;
     if (filter === "project") return m.project_id !== null;
+    if (filter === "suggested") return m.approval_status === "suggested";
     return true;
   });
 
@@ -74,7 +75,13 @@ export function MemoryClient({
 
   async function toggle(m: MemoryRow) {
     setBusy(m.id);
-    const next = m.approval_status === "approved" ? "disabled" : "approved";
+    // Suggested → approved; approved → disabled; disabled → approved.
+    const next =
+      m.approval_status === "suggested"
+        ? "approved"
+        : m.approval_status === "approved"
+          ? "disabled"
+          : "approved";
     try {
       const res = await fetch("/api/memory", {
         method: "PATCH",
@@ -82,6 +89,9 @@ export function MemoryClient({
         body: JSON.stringify({ id: m.id, approval_status: next }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      if (next === "approved" && m.approval_status === "suggested") {
+        success("Suggestion approved — it will influence chat");
+      }
       router.refresh();
     } catch (e) {
       error("Could not update", e instanceof Error ? e.message : undefined);
@@ -111,7 +121,7 @@ export function MemoryClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1">
-          {(["all", "global", "project"] as const).map((f) => (
+          {(["all", "global", "project", "suggested"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -206,7 +216,13 @@ export function MemoryClient({
                     onClick={() => toggle(m)}
                     disabled={busy === m.id}
                     className="rounded-md p-2 text-muted-foreground hover:bg-muted"
-                    title={m.approval_status === "approved" ? "Disable" : "Enable"}
+                    title={
+                      m.approval_status === "suggested"
+                        ? "Approve suggestion"
+                        : m.approval_status === "approved"
+                          ? "Disable"
+                          : "Enable"
+                    }
                   >
                     {busy === m.id ? <Spinner /> : <Power className="h-4 w-4" />}
                   </button>

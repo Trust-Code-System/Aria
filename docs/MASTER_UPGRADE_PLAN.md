@@ -487,12 +487,12 @@ sequenceDiagram
   - Status: documented in MASTER_UPGRADE_PLAN; not implemented as a feature (by design)  
 
 ### P1 — Core architecture / knowledge / tools
-- [ ] Auto-memory suggestions post-chat  
-- [ ] Hybrid BM25 + vector retrieval  
-- [ ] Model routing budgets + fallbacks  
-- [ ] Eval harness (citations, isolation, injection)  
-- [ ] Signed-URL document preview  
-- [ ] Checkpoint resume for agent_tasks  
+- [x] Auto-memory suggestions post-chat  
+- [x] Hybrid BM25 + vector retrieval  
+- [x] Model routing budgets + fallbacks  
+- [x] Eval harness (citations, isolation, injection) — unit eval suite in `tests/eval-p1.test.ts`  
+- [x] Signed-URL document preview  
+- [ ] Checkpoint resume for agent_tasks (partial via jobs; deeper step checkpoints later)  
 
 ### P2 — Personal / business / UX / admin
 - [ ] Today / daily briefing  

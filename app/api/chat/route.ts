@@ -4,9 +4,11 @@ import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { resolveRoutedChatModelId } from "@/lib/ai/routing";
 import { buildSystemPrompt, renderRetrievedContext, type ChatMode } from "@/lib/ai/prompts";
 import { retrieveChunks, hasUsableContext } from "@/lib/ai/rag";
 import { getContextMemories } from "@/lib/ai/memory";
+import { suggestMemoriesFromTurn } from "@/lib/ai/memory-suggest";
 import { runResearch } from "@/lib/ai/research";
 import { apiError } from "@/lib/api";
 import { AppError, configMissing } from "@/lib/errors";
@@ -50,7 +52,11 @@ export async function POST(req: Request) {
 
     const supabase = createServerSupabase();
 
-    const modelId = resolveUsableChatModelId();
+    const modelId = resolveRoutedChatModelId({
+      mode,
+      message,
+      preferred: resolveUsableChatModelId() ?? undefined,
+    });
     if (!modelId) throw configMissing("chat", "An LLM provider");
 
     // 1. Resolve or create the conversation.
@@ -230,6 +236,16 @@ export async function POST(req: Request) {
               response_text: text,
             });
           }
+
+          // Auto-suggest memories (status=suggested) — never auto-approve.
+          await suggestMemoriesFromTurn({
+            supabase,
+            workspaceId,
+            userId,
+            projectId: projectId ?? null,
+            userMessage: message,
+            assistantMessage: text,
+          });
 
         } catch (e) {
           await logError({ area: "chat", error: e, workspaceId, userId });

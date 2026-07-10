@@ -26,6 +26,7 @@ and nothing silently.
 
 ## Known gaps (tracked in AI_AGENT_TODO.md)
 
-- Auto-suggestion extraction after chats (schema supports `suggested`; extraction not wired).
-- Explicit relationship/contact memory types (waiting on the Contacts feature).
+- ~~Auto-suggestion extraction after chats~~ **Done (P1):** `lib/ai/memory-suggest.ts`
+  inserts `suggested` rows after chat; approve from `/memory` (Suggested filter).
+- Explicit relationship/contact memory types (waiting on deeper CRM linking).
 - Memory-write audit trail surfaced in the UI.
