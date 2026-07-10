@@ -285,7 +285,7 @@ suggestions surface as a dismissible queue on /memory with per-item provenance (
 - [ ] Gmail + Calendar **read-only** surfaces (Composio path first; document token custody). Blocked: OAuth creds.
 - [ ] Workspace switcher + per-workspace isolation e2e.
 - [ ] Playwright e2e: signup→project→upload→cite→export; approval flow; isolation. Blocked: live Supabase.
-- [ ] Approval expiry job + inbox badge.
+- [x] Approval expiry — **done 2026-07-10 (Fable).** Pending approvals lazily expire after 72h when the inbox is read (`app/api/approvals/route.ts`); expired approvals never execute (policy fails safe) and the runtime ignores them so a fresh approval is created on the next run (`lib/agent/runtime.ts`). Inbox badge styling left to the in-flight UI redesign session.
 - [ ] Retention/consent settings page (training logs, memory export/delete, doc retention).
 - [ ] Langfuse + Sentry behind env flags; admin cost/queue panels (redacted).
 - [ ] Conversation list/search; report in-app editing.

@@ -234,11 +234,14 @@ export async function runTask(taskId: string, ctx: SessionContext): Promise<RunR
       }
 
       if (risky) {
-        // Look for an existing decision on this step.
+        // Look for an existing decision on this step. Expired approvals are
+        // ignored so a fresh one is created — a stale "pending" can never be
+        // resurrected after its TTL.
         const { data: existing } = await supabase
           .from("approvals")
           .select("id, status")
           .eq("step_id", step.id)
+          .neq("status", "expired")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
