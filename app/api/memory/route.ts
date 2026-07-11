@@ -16,7 +16,7 @@ const memoryTypes = z.enum([
 ]);
 
 const createSchema = z.object({
-  content: z.string().trim().min(2).max(4000),
+  content: z.string().trim().min(2).max(100_000),
   type: memoryTypes,
   // Empty string from the Global scope select must become null, not fail UUID.
   projectId: z
@@ -28,7 +28,7 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   id: z.string().uuid(),
-  content: z.string().trim().min(2).max(4000).optional(),
+  content: z.string().trim().min(2).max(100_000).optional(),
   approval_status: z.enum(["approved", "suggested", "disabled"]).optional(),
   type: memoryTypes.optional(),
 });
@@ -170,7 +170,7 @@ function formatZod(err: ZodError): string {
   const first = err.issues[0];
   if (!first) return "Invalid memory input.";
   if (first.path.includes("projectId")) return "Pick a valid project, or use Global scope.";
-  if (first.path.includes("content")) return "Memory text must be between 2 and 4000 characters.";
+  if (first.path.includes("content")) return "Memory text must be between 2 and 100,000 characters.";
   if (first.path.includes("type")) return "Pick a valid memory type.";
   return first.message || "Invalid memory input.";
 }
