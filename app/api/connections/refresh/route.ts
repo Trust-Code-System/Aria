@@ -28,12 +28,14 @@ export async function POST(req: Request) {
     }
 
     const { status, label } = await getConnectionStatus(conn.composio_connection_id);
-    await supabase
+    const { data: updated } = await supabase
       .from("connections")
       .update({ status, account_label: label ?? null })
-      .eq("id", conn.id);
+      .eq("id", conn.id)
+      .select("id, provider, status, account_label, updated_at")
+      .single();
 
-    return apiOk({ status });
+    return apiOk({ status, connection: updated ?? null });
   } catch (error) {
     return apiError(error, { area: "tools", workspaceId: ctx?.workspaceId, userId: ctx?.userId, provider: "composio" });
   }

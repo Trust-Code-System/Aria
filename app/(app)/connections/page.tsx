@@ -5,6 +5,7 @@ import { ConnectionsClient, type ConnectionRow } from "@/components/connections/
 import { configured, env } from "@/lib/env";
 
 export const metadata = { title: "Connections · Aria" };
+export const dynamic = "force-dynamic";
 
 export default async function ConnectionsPage() {
   const ctx = await requireSession();

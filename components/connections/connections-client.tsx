@@ -65,12 +65,30 @@ export function ConnectionsClient({
   const params = useSearchParams();
   const { success, error } = useToast();
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [rows, setRows] = React.useState<ConnectionRow[]>(initial);
+
+  React.useEffect(() => {
+    setRows(initial);
+  }, [initial]);
 
   const byProvider = React.useMemo(() => {
     const m: Record<string, ConnectionRow> = {};
-    for (const c of initial) m[c.provider] = c;
+    for (const c of rows) m[c.provider] = c;
     return m;
-  }, [initial]);
+  }, [rows]);
+
+  async function reloadConnections() {
+    try {
+      const res = await fetch("/api/connections");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.connections)) {
+        setRows(data.connections as ConnectionRow[]);
+      }
+    } catch {
+      /* fall through to router refresh */
+    }
+    router.refresh();
+  }
 
   // Surface the OAuth callback result.
   React.useEffect(() => {
@@ -78,9 +96,10 @@ export function ConnectionsClient({
     if (!status) return;
     if (status === "connected") success("Connected", "Your account is linked.");
     else if (status === "error") error("Connection failed", "Please try connecting again.");
-    // clear the query params
+    void reloadConnections();
     router.replace("/connections");
-  }, [params, router, success, error]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per callback query
+  }, [params]);
 
   async function connect(provider: string) {
     setBusy(provider);
@@ -117,15 +136,22 @@ export function ConnectionsClient({
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.status === "active") {
-          success("Connected", `${provider} is linked.`);
+          success("Connected", `${provider.replace(/_/g, " ")} is linked.`);
+          if (data.connection) {
+            setRows((prev) => {
+              const next = prev.filter((r) => r.provider !== provider);
+              next.push(data.connection as ConnectionRow);
+              return next;
+            });
+          }
           setBusy(null);
-          router.refresh();
+          await reloadConnections();
           return;
         }
         if (res.ok && data.status === "error") {
           error("Connection failed", "Authorization did not complete.");
           setBusy(null);
-          router.refresh();
+          await reloadConnections();
           return;
         }
         if (!res.ok) {
@@ -133,7 +159,7 @@ export function ConnectionsClient({
           if (hardFails >= 3) {
             error("Connection stalled", data.error || "Could not check connection status.");
             setBusy(null);
-            router.refresh();
+            await reloadConnections();
             return;
           }
         } else {
@@ -145,7 +171,7 @@ export function ConnectionsClient({
     }
     setBusy(null);
     error("Still waiting", "Finish authorizing in the other tab, then try Connect again.");
-    router.refresh();
+    await reloadConnections();
   }
 
   async function disconnect(id: string) {
@@ -155,7 +181,8 @@ export function ConnectionsClient({
       const res = await fetch(`/api/connections?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error);
       success("Disconnected");
-      router.refresh();
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      await reloadConnections();
     } catch (e) {
       error("Could not disconnect", e instanceof Error ? e.message : undefined);
     } finally {
