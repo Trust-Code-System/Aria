@@ -27,6 +27,13 @@ when optional keys are missing (features show a clear "not configured" state ins
 
 ## Quick start
 
+### Desktop & Chrome extension
+
+Install Aria like an app, or use the Gemini-style side panel:
+
+→ **[`docs/INSTALL_DESKTOP_AND_EXTENSION.md`](./docs/INSTALL_DESKTOP_AND_EXTENSION.md)**  
+→ Extension source: [`extension/`](./extension/)
+
 ### 1. Install
 
 ```bash

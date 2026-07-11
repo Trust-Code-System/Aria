@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aria</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand">
+        <img src="icons/icon-32.png" alt="" width="20" height="20" />
+        <span>Aria</span>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-chat" title="Chat">Chat</button>
+        <button type="button" id="btn-connections" title="Connections">Apps</button>
+        <button type="button" id="btn-open" title="Open in tab">↗</button>
+        <button type="button" id="btn-settings" title="Settings">⚙</button>
+      </div>
+    </header>
+    <main class="frame-wrap">
+      <iframe id="frame" title="Aria" allow="clipboard-read; clipboard-write; microphone"></iframe>
+      <div id="boot" class="boot">
+        <img src="icons/icon-128.png" alt="" width="64" height="64" />
+        <p>Loading Aria…</p>
+      </div>
+    </main>
+    <script src="sidepanel.js" type="module"></script>
+  </body>
+</html>

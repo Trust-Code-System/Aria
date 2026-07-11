@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Aria",
+  "version": "1.0.0",
+  "description": "Open Aria — your private AI workspace — in a Chrome side panel, like Gemini.",
+  "action": {
+    "default_title": "Ask Aria",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "host_permissions": [
+    "https://aria-vert-chi.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+A",
+        "mac": "Alt+A"
+      },
+      "description": "Open Aria side panel"
+    }
+  }
+}
