@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 import { WORKSPACE_COOKIE } from "@/lib/auth/workspace-cookie";
-import { isAdminEmail } from "@/lib/env";
+import { env, isAdminEmail } from "@/lib/env";
 import { unauthorized, AppError } from "@/lib/errors";
 
 export interface SessionContext {
@@ -18,6 +18,10 @@ export interface SessionContext {
  * Throws AppError for API routes (use `requireSessionApi`).
  */
 export async function getSessionContext(): Promise<SessionContext | null> {
+  if (env.authDisabled) {
+    return getBypassSessionContext();
+  }
+
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -46,6 +50,65 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     workspaceId,
     isAdmin: isAdminEmail(user.email),
   };
+}
+
+/**
+ * When AUTH_DISABLED=true, impersonate ADMIN_EMAIL via the service role so the
+ * app is usable without magic-link rate limits. Not for public production.
+ */
+async function getBypassSessionContext(): Promise<SessionContext | null> {
+  const email = env.adminEmails[0];
+  if (!email) {
+    throw new AppError({
+      area: "auth",
+      category: "config_missing",
+      userMessage: "AUTH_DISABLED is on, but ADMIN_EMAIL is missing.",
+      internal: "Set ADMIN_EMAIL to an existing Supabase Auth user email.",
+    });
+  }
+
+  try {
+    const admin = createAdminSupabase();
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    if (error) throw error;
+    let user = data.users.find((u) => (u.email ?? "").toLowerCase() === email) ?? null;
+
+    if (!user) {
+      const created = await admin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+      });
+      if (created.error || !created.data.user) {
+        throw new AppError({
+          area: "auth",
+          category: "config_missing",
+          userMessage: `Could not create bypass user for ${email}.`,
+          internal: created.error,
+        });
+      }
+      user = created.data.user;
+    }
+
+    let workspaceId = await getDefaultWorkspaceId(admin, user.id);
+    if (!workspaceId) {
+      workspaceId = await bootstrapWorkspace(admin, user.id, user.email ?? email);
+    }
+
+    return {
+      userId: user.id,
+      email: user.email ?? email,
+      workspaceId,
+      isAdmin: true,
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError({
+      area: "auth",
+      category: "config_missing",
+      userMessage: "Auth bypass failed. Check SUPABASE_SERVICE_ROLE_KEY and ADMIN_EMAIL.",
+      internal: err,
+    });
+  }
 }
 
 /** For pages: redirect to /login if not authed. */
@@ -83,7 +146,7 @@ export async function requireAdminApi(): Promise<SessionContext> {
 }
 
 async function verifyMembership(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: { from: (t: string) => any },
   userId: string,
   workspaceId: string,
 ): Promise<string | null> {
@@ -97,7 +160,7 @@ async function verifyMembership(
 }
 
 async function getDefaultWorkspaceId(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: { from: (t: string) => any },
   userId: string,
 ): Promise<string | null> {
   const { data } = await supabase
@@ -111,7 +174,7 @@ async function getDefaultWorkspaceId(
 }
 
 async function bootstrapWorkspace(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: { from: (t: string) => any },
   userId: string,
   email: string | null,
 ): Promise<string> {

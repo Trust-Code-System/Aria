@@ -14,6 +14,17 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  // Temporary open access — skip login gate. Turn off AUTH_DISABLED to restore.
+  if (env.authDisabled) {
+    if (request.nextUrl.pathname === "/login") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/chat";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {
       getAll() {

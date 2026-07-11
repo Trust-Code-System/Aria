@@ -72,6 +72,13 @@ export const env = {
    * /api/jobs/drain instead (serverless-safe path).
    */
   jobsInline: !["0", "false", "no"].includes(str(process.env.JOBS_INLINE).toLowerCase()),
+
+  /**
+   * TEMPORARY: skip login redirects and act as ADMIN_EMAIL's user.
+   * Anyone with the URL gets that account's access — turn off for production.
+   * Requires SUPABASE_SERVICE_ROLE_KEY + ADMIN_EMAIL of an existing user.
+   */
+  authDisabled: ["1", "true", "yes"].includes(str(process.env.AUTH_DISABLED).toLowerCase()),
 };
 
 export const configured = {
