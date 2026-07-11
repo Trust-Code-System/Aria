@@ -108,4 +108,32 @@ export function resolveUsableChatModelId(preferred?: string): string | null {
   return null;
 }
 
-export { configured };
+/** Whether this model accepts a custom temperature in chat/completions. */
+export function supportsTemperature(modelId: string): boolean {
+  const { provider, model } = parseModelId(modelId);
+  if (provider === "openai") {
+    // GPT-5 / o-series reject or ignore temperature and often 400 if set.
+    return !/^(gpt-5|o[0-9]|chatgpt-4o-latest)/i.test(model);
+  }
+  return true;
+}
+
+/**
+ * Ordered fallbacks when the primary model fails (rate limit, quota, etc.).
+ */
+export function fallbackChatModelIds(failedId: string): string[] {
+  const avail = availableProviders();
+  const failedProvider = parseModelId(failedId).provider;
+  const out: string[] = [];
+  for (const id of [
+    LATEST_CHAT_MODELS.google,
+    LATEST_CHAT_MODELS.openai,
+    LATEST_CHAT_MODELS.anthropic,
+  ]) {
+    const { provider } = parseModelId(id);
+    if (provider === failedProvider) continue;
+    if (avail[provider]) out.push(id);
+  }
+  return out;
+}
+

@@ -302,6 +302,12 @@ export function Chat({
         ),
       );
 
+      if (!acc.trim()) {
+        throw new Error(
+          "The assistant returned an empty reply. The model may be rate-limited — wait a bit and try again.",
+        );
+      }
+
       if (!conversationId && newConvId) {
         router.replace(`/chat/${newConvId}`);
         router.refresh();
