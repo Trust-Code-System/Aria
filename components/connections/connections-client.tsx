@@ -174,17 +174,31 @@ export function ConnectionsClient({
     await reloadConnections();
   }
 
-  async function disconnect(id: string) {
+  async function disconnect(id: string, provider: string) {
     if (!confirm("Disconnect this account?")) return;
     setBusy(id);
     try {
-      const res = await fetch(`/api/connections?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error);
+      const res = await fetch(
+        `/api/connections?id=${encodeURIComponent(id)}&provider=${encodeURIComponent(provider)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Stale UI after auth/workspace changes — refresh and treat as gone.
+        if (res.status === 404) {
+          setRows((prev) => prev.filter((r) => r.id !== id && r.provider !== provider));
+          await reloadConnections();
+          success("Disconnected", "Connection cleared.");
+          return;
+        }
+        throw new Error(data.error || "Could not disconnect.");
+      }
       success("Disconnected");
-      setRows((prev) => prev.filter((r) => r.id !== id));
+      setRows((prev) => prev.filter((r) => r.id !== id && r.provider !== provider));
       await reloadConnections();
     } catch (e) {
       error("Could not disconnect", e instanceof Error ? e.message : undefined);
+      await reloadConnections();
     } finally {
       setBusy(null);
     }
@@ -226,7 +240,7 @@ export function ConnectionsClient({
               )}
               <div className="mt-4 flex gap-2">
                 {active ? (
-                  <Button variant="outline" size="sm" onClick={() => disconnect(conn.id)} disabled={busy === conn.id}>
+                  <Button variant="outline" size="sm" onClick={() => disconnect(conn.id, app.provider)} disabled={busy === conn.id}>
                     {busy === conn.id ? <Spinner /> : <Trash2 className="h-4 w-4" />} Disconnect
                   </Button>
                 ) : (

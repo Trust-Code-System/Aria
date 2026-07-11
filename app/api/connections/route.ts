@@ -95,15 +95,20 @@ export async function DELETE(req: Request) {
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
   try {
     ctx = await requireSessionApi();
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new AppError({ area: "tools", category: "validation", userMessage: "Missing connection id." });
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    const provider = url.searchParams.get("provider");
+    if (!id && !provider) {
+      throw new AppError({ area: "tools", category: "validation", userMessage: "Missing connection id." });
+    }
     const supabase = createServerSupabase();
-    const { data: conn } = await supabase
+    let query = supabase
       .from("connections")
-      .select("id, composio_connection_id")
-      .eq("id", id)
-      .eq("workspace_id", ctx.workspaceId)
-      .maybeSingle();
+      .select("id, composio_connection_id, provider")
+      .eq("workspace_id", ctx.workspaceId);
+    if (id) query = query.eq("id", id);
+    else if (provider) query = query.eq("provider", provider);
+    const { data: conn } = await query.maybeSingle();
     if (!conn) throw new AppError({ area: "tools", category: "not_found", userMessage: "Connection not found." });
 
     if (conn.composio_connection_id) {
@@ -113,15 +118,27 @@ export async function DELETE(req: Request) {
         /* best-effort; still remove our record */
       }
     }
-    await supabase.from("connections").delete().eq("id", id).eq("workspace_id", ctx.workspaceId);
+    const { error: deleteError } = await supabase
+      .from("connections")
+      .delete()
+      .eq("id", conn.id)
+      .eq("workspace_id", ctx.workspaceId);
+    if (deleteError) {
+      throw new AppError({
+        area: "tools",
+        category: "internal",
+        userMessage: "Could not disconnect. Please try again.",
+        internal: deleteError,
+      });
+    }
     await logAudit({
       action: "connection.disconnect",
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
       targetType: "connection",
-      targetId: id,
+      targetId: conn.id,
     });
-    return apiOk({ ok: true });
+    return apiOk({ ok: true, id: conn.id, provider: conn.provider });
   } catch (error) {
     return apiError(error, { area: "tools", workspaceId: ctx?.workspaceId, userId: ctx?.userId });
   }

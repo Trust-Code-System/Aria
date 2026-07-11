@@ -77,6 +77,7 @@ export async function initiateConnection(params: {
     body: JSON.stringify({
       auth_config_id: params.authConfigId,
       user_id: params.entityId,
+      ...(params.callbackUrl ? { callback_url: params.callbackUrl } : {}),
     }),
   });
   return {
