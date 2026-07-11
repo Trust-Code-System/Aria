@@ -106,6 +106,7 @@ export function ConnectionsClient({
 
   async function pollUntilConnected(provider: string) {
     // Poll up to ~2.5 min for the user to finish OAuth.
+    let hardFails = 0;
     for (let i = 0; i < 50; i++) {
       await new Promise((r) => setTimeout(r, 3000));
       try {
@@ -114,7 +115,7 @@ export function ConnectionsClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider }),
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (res.ok && data.status === "active") {
           success("Connected", `${provider} is linked.`);
           setBusy(null);
@@ -127,11 +128,23 @@ export function ConnectionsClient({
           router.refresh();
           return;
         }
+        if (!res.ok) {
+          hardFails += 1;
+          if (hardFails >= 3) {
+            error("Connection stalled", data.error || "Could not check connection status.");
+            setBusy(null);
+            router.refresh();
+            return;
+          }
+        } else {
+          hardFails = 0;
+        }
       } catch {
-        /* keep polling */
+        /* keep polling briefly */
       }
     }
     setBusy(null);
+    error("Still waiting", "Finish authorizing in the other tab, then try Connect again.");
     router.refresh();
   }
 

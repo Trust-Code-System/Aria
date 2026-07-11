@@ -6,8 +6,15 @@ import { env, configured } from "@/lib/env";
 /**
  * Server Supabase client bound to the request's cookies. Respects RLS as the
  * signed-in user. Use this in Server Components, route handlers, and actions.
+ *
+ * When AUTH_DISABLED is on, returns the service-role client so bypass sessions
+ * can still read/write (there is no cookie user for RLS).
  */
 export function createServerSupabase() {
+  if (env.authDisabled && configured.supabaseAdmin) {
+    return createAdminSupabase() as ReturnType<typeof createServerClient>;
+  }
+
   const cookieStore = cookies();
   return createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {

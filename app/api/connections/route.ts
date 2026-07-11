@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     });
 
     const supabase = createServerSupabase();
-    await supabase
+    const { error: upsertError } = await supabase
       .from("connections")
       .upsert(
         {
@@ -68,6 +68,14 @@ export async function POST(req: Request) {
         },
         { onConflict: "workspace_id,provider" },
       );
+    if (upsertError) {
+      throw new AppError({
+        area: "tools",
+        category: "internal",
+        userMessage: "Could not save the connection. Please try again.",
+        internal: upsertError,
+      });
+    }
 
     await logAudit({
       action: "connection.initiate",
