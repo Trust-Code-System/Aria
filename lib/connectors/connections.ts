@@ -13,15 +13,18 @@ export async function getActiveConnection(
   workspaceId: string,
   provider: string,
   supabase?: SupabaseClient,
-): Promise<{ entityId: string } | null> {
+): Promise<{ entityId: string; connectedAccountId?: string } | null> {
   if (!configured.connectors) return null;
   const client = supabase ?? createServerSupabase();
   const { data } = await client
     .from("connections")
-    .select("status, composio_entity_id, user_id")
+    .select("status, composio_entity_id, composio_connection_id, user_id")
     .eq("workspace_id", workspaceId)
     .eq("provider", provider)
     .maybeSingle();
   if (!data || data.status !== "active") return null;
-  return { entityId: data.composio_entity_id ?? data.user_id };
+  return {
+    entityId: data.composio_entity_id ?? data.user_id,
+    connectedAccountId: data.composio_connection_id ?? undefined,
+  };
 }

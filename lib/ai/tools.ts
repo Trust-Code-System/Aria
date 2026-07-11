@@ -128,7 +128,11 @@ const gmailReadTool: ToolDefinition = {
   outputSchema: z.object({ emails: z.array(z.any()) }),
   async execute(input, ctx) {
     const conn = await requireConnection(ctx, "gmail");
-    const emails = await fetchRecentEmails(conn.entityId, input.max ?? 15);
+    const emails = await fetchRecentEmails(
+      conn.entityId,
+      input.max ?? 8,
+      conn.connectedAccountId,
+    );
     return { emails };
   },
 };
@@ -146,7 +150,11 @@ const gmailDraftTool: ToolDefinition = {
   outputSchema: z.object({ draftId: z.string() }),
   async execute(input, ctx) {
     const conn = await requireConnection(ctx, "gmail");
-    return await createDraft({ entityId: conn.entityId, ...input });
+    return await createDraft({
+      entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
+      ...input,
+    });
   },
 };
 
@@ -163,7 +171,12 @@ const gmailSendTool: ToolDefinition = {
   async execute(input, ctx) {
     requireConfirmed(ctx, "Send email");
     const conn = await requireConnection(ctx, "gmail");
-    return await sendEmail({ entityId: conn.entityId, ...input, confirmed: true });
+    return await sendEmail({
+      entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
+      ...input,
+      confirmed: true,
+    });
   },
 };
 
@@ -190,6 +203,7 @@ const calendarCreateTool: ToolDefinition = {
     const event = await composioExecute({
       toolSlug: "GOOGLECALENDAR_CREATE_EVENT",
       entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
       args: input as Record<string, unknown>,
     });
     return { event };
@@ -212,6 +226,7 @@ const driveTool: ToolDefinition = {
     const files = await composioExecute({
       toolSlug: "GOOGLEDRIVE_FIND_FILE",
       entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
       args: { query: input.query },
     });
     return { files };
@@ -235,6 +250,7 @@ const slackTool: ToolDefinition = {
     const result = await composioExecute({
       toolSlug: "SLACK_SEND_MESSAGE",
       entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
       args: { channel: input.channel, text: input.text },
     });
     return { result };
@@ -257,6 +273,7 @@ const notionTool: ToolDefinition = {
     const pages = await composioExecute({
       toolSlug: "NOTION_SEARCH_NOTION_PAGE",
       entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
       args: { query: input.query },
     });
     return { pages };
@@ -280,6 +297,7 @@ const githubTool: ToolDefinition = {
     const issues = await composioExecute({
       toolSlug: "GITHUB_LIST_REPOSITORY_ISSUES",
       entityId: conn.entityId,
+      connectedAccountId: conn.connectedAccountId,
       args: { owner: input.owner, repo: input.repo },
     });
     return { issues };

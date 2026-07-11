@@ -115,12 +115,17 @@ export async function deleteConnection(connectedAccountId: string): Promise<void
 export async function executeTool<T = any>(params: {
   toolSlug: string;
   entityId: string;
+  /** Prefer this when available — avoids ambiguous multi-account lookups. */
+  connectedAccountId?: string;
   args: Record<string, unknown>;
 }): Promise<T> {
   const data = await composio<any>(`${V3}/tools/execute/${params.toolSlug}`, {
     method: "POST",
     body: JSON.stringify({
       user_id: params.entityId,
+      ...(params.connectedAccountId
+        ? { connected_account_id: params.connectedAccountId }
+        : {}),
       arguments: params.args,
     }),
   });
@@ -128,7 +133,7 @@ export async function executeTool<T = any>(params: {
     throw new AppError({
       area: "tools",
       category: "provider_error",
-      userMessage: "That action could not be completed.",
+      userMessage: "That action could not be completed. Reconnect the app on Connections if this keeps happening.",
       internal: `composio tool ${params.toolSlug}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`,
     });
   }

@@ -309,11 +309,15 @@ function EmailTriage() {
     setLoading(true);
     try {
       const res = await fetch("/api/cowork/email-triage", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setEmails(data.emails);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Triage failed (${res.status})`);
+      setEmails(Array.isArray(data.emails) ? data.emails : []);
+      if (Array.isArray(data.emails) && data.emails.length === 0) {
+        success("Inbox checked", "No recent emails in the last 7 days.");
+      }
     } catch (e) {
       error("Triage failed", e instanceof Error ? e.message : undefined);
+      setEmails(null);
     } finally {
       setLoading(false);
     }

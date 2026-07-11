@@ -32,14 +32,15 @@ export async function POST(req: Request) {
     const supabase = createServerSupabase();
     const { data: conn } = await supabase
       .from("connections")
-      .select("status, composio_entity_id")
+      .select("status, composio_entity_id, composio_connection_id, user_id")
       .eq("workspace_id", ctx.workspaceId)
       .eq("provider", "gmail")
       .maybeSingle();
     if (!conn || conn.status !== "active") {
       throw new AppError({ area: "tools", category: "validation", userMessage: "Connect your Gmail account first." });
     }
-    const entityId = conn.composio_entity_id ?? ctx.userId;
+    const entityId = conn.composio_entity_id || conn.user_id || ctx.userId;
+    const connectedAccountId = conn.composio_connection_id ?? undefined;
 
     if (body.action === "send") {
       if (!body.confirmed) {
@@ -49,7 +50,14 @@ export async function POST(req: Request) {
           userMessage: "Sending an email needs your explicit confirmation.",
         });
       }
-      await sendEmail({ entityId, to: body.to, subject: body.subject, body: body.body, confirmed: true });
+      await sendEmail({
+        entityId,
+        connectedAccountId,
+        to: body.to,
+        subject: body.subject,
+        body: body.body,
+        confirmed: true,
+      });
       await logAudit({
         action: "gmail.send",
         workspaceId: ctx.workspaceId,
@@ -60,7 +68,13 @@ export async function POST(req: Request) {
       return apiOk({ ok: true, sent: true });
     }
 
-    const { draftId } = await createDraft({ entityId, to: body.to, subject: body.subject, body: body.body });
+    const { draftId } = await createDraft({
+      entityId,
+      connectedAccountId,
+      to: body.to,
+      subject: body.subject,
+      body: body.body,
+    });
     await logAudit({
       action: "gmail.draft",
       workspaceId: ctx.workspaceId,
