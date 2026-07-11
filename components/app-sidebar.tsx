@@ -21,10 +21,12 @@ import {
   ContactRound,
   PanelLeftClose,
   PanelLeftOpen,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { SidebarChatHistory } from "@/components/chat/sidebar-chat-history";
 
 interface NavItem {
   href: string;
@@ -71,7 +73,7 @@ export function AppSidebar() {
 
   const renderContent = (compact: boolean) => (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-container-low text-on-surface">
-      <div className={cn("flex h-14 items-center", compact ? "justify-center px-2" : "gap-2 px-4")}>
+      <div className={cn("flex h-14 shrink-0 items-center", compact ? "justify-center px-2" : "gap-2 px-4")}>
         {!compact && <BrandMark size={32} />}
         {!compact && <span className="text-base font-semibold tracking-tight">Aria</span>}
         <button
@@ -88,7 +90,7 @@ export function AppSidebar() {
         </button>
       </div>
 
-      <div className={compact ? "px-2" : "px-3"}>
+      <div className={cn("shrink-0", compact ? "px-2" : "px-3")}>
         <Link
           href="/chat"
           onClick={() => setOpen(false)}
@@ -103,33 +105,56 @@ export function AppSidebar() {
         </Link>
       </div>
 
-      <nav className={cn("scrollbar-thin mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pb-3", compact ? "px-2" : "px-3")}>
-        {NAV.map((item) => {
-          const active =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              title={compact ? item.label : undefined}
-              className={cn(
-                "flex h-10 items-center rounded-xl text-sm font-medium transition-colors",
-                compact ? "justify-center px-0" : "gap-3 px-3",
-                active
-                  ? "border border-outline-variant bg-secondary-container text-on-secondary-container shadow-sm"
-                  : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
-              )}
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              {!compact && item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className={cn("scrollbar-thin mt-2 min-h-0 flex-1 overflow-y-auto pb-2", compact ? "px-2" : "px-3")}>
+        <SidebarChatHistory compact={compact} onNavigate={() => setOpen(false)} />
 
-      <div className={cn("pb-3", compact ? "px-2" : "px-3")}>
+        {!compact && (
+          <div className="my-3 border-t border-outline-variant/70" />
+        )}
+
+        {compact && (
+          <Link
+            href="/chat/history"
+            onClick={() => setOpen(false)}
+            title="History"
+            className={cn(
+              "mt-2 flex h-10 items-center justify-center rounded-xl text-sm font-medium transition-colors",
+              pathname.startsWith("/chat/history")
+                ? "border border-outline-variant bg-secondary-container text-on-secondary-container"
+                : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
+            )}
+          >
+            <History className="h-[18px] w-[18px]" />
+          </Link>
+        )}
+
+        <nav className="mt-1 space-y-1">
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                title={compact ? item.label : undefined}
+                className={cn(
+                  "flex h-10 items-center rounded-xl text-sm font-medium transition-colors",
+                  compact ? "justify-center px-0" : "gap-3 px-3",
+                  active
+                    ? "border border-outline-variant bg-secondary-container text-on-secondary-container shadow-sm"
+                    : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+                {!compact && item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className={cn("shrink-0 pb-3", compact ? "px-2" : "px-3")}>
         <Link
           href="/settings"
           onClick={() => setOpen(false)}
@@ -147,7 +172,7 @@ export function AppSidebar() {
         </Link>
       </div>
 
-      <div className={cn("border-t border-outline-variant", compact ? "p-2" : "p-3")}>
+      <div className={cn("shrink-0 border-t border-outline-variant", compact ? "p-2" : "p-3")}>
         <div className={cn("flex items-center", compact ? "justify-center" : "justify-between")}>
           {!compact && (
             <div className="min-w-0">
@@ -170,7 +195,6 @@ export function AppSidebar() {
 
   return (
     <>
-      {/* Mobile top bar */}
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant bg-surface-container-low px-4 py-3 text-on-surface md:hidden">
         <div className="flex items-center gap-2">
           <BrandMark size={28} />
@@ -181,7 +205,6 @@ export function AppSidebar() {
         </button>
       </div>
 
-      {/* Desktop sidebar */}
       <aside
         className={cn(
           "hidden h-dvh shrink-0 overflow-hidden border-r border-outline-variant bg-surface-container-low backdrop-blur-xl transition-[width] duration-200 md:block",
@@ -191,7 +214,6 @@ export function AppSidebar() {
         {renderContent(collapsed)}
       </aside>
 
-      {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
