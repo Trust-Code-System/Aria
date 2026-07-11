@@ -4,22 +4,23 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import {
-  LayoutDashboard,
-  FolderKanban,
-  BookOpen,
-  Brain,
-  FileText,
-  ShieldAlert,
-  Settings,
-  MessageSquarePlus,
+  Gauge,
+  FolderOpen,
+  LibraryBig,
+  BrainCircuit,
+  Files,
+  Settings2,
+  SquarePen,
   LogOut,
   Menu,
   X,
-  Bot,
-  Plug,
-  ListTodo,
+  Workflow,
+  Cable,
+  ListChecks,
   ShieldCheck,
-  Users,
+  ContactRound,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -29,34 +30,38 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  adminOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/dashboard", label: "Dashboard", icon: Gauge },
+  { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/approvals", label: "Approvals", icon: ShieldCheck },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/agents", label: "Agents", icon: Bot },
-  { href: "/connections", label: "Connections", icon: Plug },
-  { href: "/knowledge", label: "Knowledge", icon: BookOpen },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/memory", label: "Memory", icon: Brain },
-  { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/admin", label: "Admin", icon: ShieldAlert, adminOnly: true },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/projects", label: "Projects", icon: FolderOpen },
+  { href: "/agents", label: "Agents", icon: Workflow },
+  { href: "/connections", label: "Connections", icon: Cable },
+  { href: "/knowledge", label: "Knowledge", icon: LibraryBig },
+  { href: "/contacts", label: "Contacts", icon: ContactRound },
+  { href: "/memory", label: "Memory", icon: BrainCircuit },
+  { href: "/reports", label: "Reports", icon: Files },
 ];
 
-export function AppSidebar({
-  email,
-  isAdmin,
-}: {
-  email: string | null;
-  isAdmin: boolean;
-}) {
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    setCollapsed(localStorage.getItem("aria-sidebar-collapsed") === "true");
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem("aria-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
 
   const signOut = async () => {
     await createClient().auth.signOut();
@@ -64,28 +69,42 @@ export function AppSidebar({
     router.refresh();
   };
 
-  const items = NAV.filter((n) => !n.adminOnly || isAdmin);
-
-  const content = (
+  const renderContent = (compact: boolean) => (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-container-low text-on-surface">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <BrandMark size={32} />
-        <span className="text-base font-semibold tracking-tight">Aria</span>
+      <div className={cn("flex h-14 items-center", compact ? "justify-center px-2" : "gap-2 px-4")}>
+        {!compact && <BrandMark size={32} />}
+        {!compact && <span className="text-base font-semibold tracking-tight">Aria</span>}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className={cn(
+            "ml-auto hidden h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-variant hover:text-on-surface md:flex",
+            compact && "ml-0",
+          )}
+          aria-label={compact ? "Open sidebar" : "Close sidebar"}
+          title={compact ? "Open sidebar" : "Close sidebar"}
+        >
+          {compact ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
+        </button>
       </div>
 
-      <div className="px-3">
+      <div className={compact ? "px-2" : "px-3"}>
         <Link
           href="/chat"
           onClick={() => setOpen(false)}
-          className="flex items-center gap-2 rounded-lg bg-primary-container px-3 py-2 text-sm font-medium text-on-primary-container transition hover:bg-inverse-primary hover:text-white"
+          title={compact ? "New chat" : undefined}
+          className={cn(
+            "flex h-10 items-center rounded-xl bg-primary-container text-sm font-medium text-on-primary-container transition hover:bg-inverse-primary hover:text-white",
+            compact ? "justify-center px-0" : "gap-2 px-3",
+          )}
         >
-          <MessageSquarePlus className="h-4 w-4" />
-          New chat
+          <SquarePen className="h-[18px] w-[18px]" />
+          {!compact && "New chat"}
         </Link>
       </div>
 
-      <nav className="mt-3 min-h-0 flex-1 space-y-1 px-3">
-        {items.map((item) => {
+      <nav className={cn("scrollbar-thin mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pb-3", compact ? "px-2" : "px-3")}>
+        {NAV.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
@@ -94,35 +113,56 @@ export function AppSidebar({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
+              title={compact ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                "flex h-10 items-center rounded-xl text-sm font-medium transition-colors",
+                compact ? "justify-center px-0" : "gap-3 px-3",
                 active
                   ? "border border-outline-variant bg-secondary-container text-on-secondary-container shadow-sm"
                   : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
               )}
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <Icon className="h-[18px] w-[18px]" />
+              {!compact && item.label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-outline-variant p-3">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">Ghost</p>
-            <p className="text-xs text-on-surface-variant">{isAdmin ? "Admin" : "Member"}</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={signOut}
-              className="rounded-md p-2 text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+      <div className={cn("pb-3", compact ? "px-2" : "px-3")}>
+        <Link
+          href="/settings"
+          onClick={() => setOpen(false)}
+          title={compact ? "Settings" : undefined}
+          className={cn(
+            "flex h-10 items-center rounded-xl text-sm font-medium transition-colors",
+            compact ? "justify-center px-0" : "gap-3 px-3",
+            pathname === "/settings" || pathname.startsWith("/settings/")
+              ? "bg-secondary-container text-on-secondary-container"
+              : "text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
+          )}
+        >
+          <Settings2 className="h-[18px] w-[18px]" />
+          {!compact && "Settings"}
+        </Link>
+      </div>
+
+      <div className={cn("border-t border-outline-variant", compact ? "p-2" : "p-3")}>
+        <div className={cn("flex items-center", compact ? "justify-center" : "justify-between")}>
+          {!compact && (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">Ghost</p>
+              <p className="truncate text-xs text-on-surface-variant">Personal workspace</p>
+            </div>
+          )}
+          <button
+            onClick={signOut}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -142,8 +182,13 @@ export function AppSidebar({
       </div>
 
       {/* Desktop sidebar */}
-      <aside className="hidden h-dvh w-64 shrink-0 overflow-hidden border-r border-outline-variant bg-surface-container-low backdrop-blur-xl md:block">
-        {content}
+      <aside
+        className={cn(
+          "hidden h-dvh shrink-0 overflow-hidden border-r border-outline-variant bg-surface-container-low backdrop-blur-xl transition-[width] duration-200 md:block",
+          collapsed ? "w-[68px]" : "w-64",
+        )}
+      >
+        {renderContent(collapsed)}
       </aside>
 
       {/* Mobile drawer */}
@@ -158,7 +203,7 @@ export function AppSidebar({
             >
               <X className="h-5 w-5" />
             </button>
-            {content}
+            {renderContent(false)}
           </div>
         </div>
       )}

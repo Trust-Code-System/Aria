@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { BackButton } from "@/components/navigation/back-button";
+import { WorkspaceSwitcher } from "@/components/workspaces/workspace-switcher";
 
 export function PageShell({
   title,
@@ -27,7 +28,10 @@ export function PageShell({
             )}
           </div>
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        <div className="flex items-center gap-2">
+          {actions}
+          <WorkspaceSwitcher />
+        </div>
       </div>
       {children}
     </div>

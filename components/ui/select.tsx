@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,12 +27,16 @@ export function Select({
   buttonClassName?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [menuStyle, setMenuStyle] = React.useState<React.CSSProperties>({});
   const ref = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.value === value);
 
   React.useEffect(() => {
     function onPointerDown(event: PointerEvent) {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     }
 
     function onKeyDown(event: KeyboardEvent) {
@@ -46,9 +51,40 @@ export function Select({
     };
   }, []);
 
+  React.useLayoutEffect(() => {
+    if (!open) return;
+
+    function positionMenu() {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const gap = 8;
+      const estimatedHeight = Math.min(256, options.length * 48 + 12);
+      const roomBelow = window.innerHeight - rect.bottom;
+      const openAbove = roomBelow < estimatedHeight + gap && rect.top > roomBelow;
+
+      setMenuStyle({
+        position: "fixed",
+        left: rect.left,
+        width: rect.width,
+        ...(openAbove
+          ? { bottom: window.innerHeight - rect.top + gap, top: "auto" }
+          : { top: rect.bottom + gap, bottom: "auto" }),
+      });
+    }
+
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [open, options.length]);
+
   return (
     <div ref={ref} className={cn("relative", className)}>
       <button
+        ref={buttonRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -64,8 +100,12 @@ export function Select({
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-on-surface-variant transition", open && "rotate-180")} />
       </button>
 
-      {open && (
-        <div className="absolute z-40 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-outline-variant bg-surface-container p-1.5 shadow-2xl backdrop-blur-xl">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={menuStyle}
+          className="z-[200] max-h-64 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[0_18px_50px_rgba(16,16,20,0.16)]"
+        >
           <div role="listbox" className="space-y-1">
             {options.map((option) => {
               const active = option.value === value;
@@ -97,7 +137,8 @@ export function Select({
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

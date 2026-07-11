@@ -7,10 +7,11 @@ export const metadata: Metadata = {
   title: "Aria — Your private AI workspace",
   description:
     "A private, source-grounded AI workspace: projects, knowledge base, research with citations, memory, and reports.",
+  icons: { icon: "/logo.svg" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f493f",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
   // App-like mobile behavior: draw edge-to-edge behind notches/home indicator
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Design fonts + Material Symbols icons used by the app UI. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -165,7 +165,7 @@ export function FierceDashboard({ name, metrics, series, recent, gmail }: Props)
             {recent.length === 0 ? (
               <Link
                 href="/chat"
-                className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 py-8 text-sm text-muted-foreground hover:text-foreground"
+                className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-8 text-sm text-muted-foreground hover:text-foreground"
               >
                 <MessageSquare className="h-4 w-4" /> Start your first chat
               </Link>
@@ -174,7 +174,7 @@ export function FierceDashboard({ name, metrics, series, recent, gmail }: Props)
                 {recent.map((c) => (
                   <Link key={c.id} href={`/chat/${c.id}`} className="glass glass-hover rounded-2xl p-4">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <MessageSquare className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
@@ -208,7 +208,7 @@ export function FierceDashboard({ name, metrics, series, recent, gmail }: Props)
             </div>
           ) : (
             <div className="glass flex items-center gap-3 rounded-3xl p-4">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Mail className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -263,7 +263,7 @@ function StatCard({
   return (
     <div className="glass rounded-3xl p-5">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">{icon}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</span>
         {label}
       </div>
       <div className="mt-3 text-2xl font-semibold tracking-tight">
@@ -283,7 +283,7 @@ function StatCard({
 function ActionRow({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <Link href={href} className="glass-hover flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">{icon}</span>
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</span>
       <span className="font-medium">{label}</span>
       <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
     </Link>
@@ -313,16 +313,16 @@ function AreaChart({ data }: { data: { date: string; count: number }[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#b58cff" stopOpacity="0.34" />
-            <stop offset="100%" stopColor="#b58cff" stopOpacity="0" />
+            <stop offset="0%" stopColor="#6d5cff" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#6d5cff" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={area} fill="url(#areaFill)" />
-        <path d={line} fill="none" stroke="#b58cff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={line} fill="none" stroke="#6d5cff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         {peak && (
           <>
-            <circle cx={peak[0]} cy={peak[1]} r="4" fill="#f4efe6" />
-            <circle cx={peak[0]} cy={peak[1]} r="8" fill="#b58cff" fillOpacity="0.22" />
+            <circle cx={peak[0]} cy={peak[1]} r="4" fill="#ffffff" stroke="#6d5cff" strokeWidth="2" />
+            <circle cx={peak[0]} cy={peak[1]} r="8" fill="#6d5cff" fillOpacity="0.18" />
           </>
         )}
       </svg>
@@ -340,10 +340,10 @@ function AreaChart({ data }: { data: { date: string; count: number }[] }) {
 // --- Real workspace breakdown donut (pure SVG) -----------------------------
 function BreakdownCard({ metrics }: { metrics: Metrics }) {
   const segs = [
-    { label: "Projects", value: metrics.projects, color: "#b58cff" },
-    { label: "Documents", value: metrics.documents, color: "#d7c8aa" },
-    { label: "Memories", value: metrics.memories, color: "#9fb57b" },
-    { label: "Reports", value: metrics.reports, color: "#e3c384" },
+    { label: "Projects", value: metrics.projects, color: "#6d5cff" },
+    { label: "Documents", value: metrics.documents, color: "#f59e0b" },
+    { label: "Memories", value: metrics.memories, color: "#22c55e" },
+    { label: "Reports", value: metrics.reports, color: "#ef4444" },
   ];
   const total = segs.reduce((a, s) => a + s.value, 0);
   const r = 52;
@@ -357,7 +357,7 @@ function BreakdownCard({ metrics }: { metrics: Metrics }) {
       <div className="mt-4 flex items-center gap-6">
         <div className="relative h-[136px] w-[136px] shrink-0">
           <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
-            <circle cx="64" cy="64" r={r} fill="none" stroke="white" strokeOpacity="0.08" strokeWidth="14" />
+            <circle cx="64" cy="64" r={r} fill="none" stroke="hsl(240 6% 90%)" strokeWidth="14" />
             {total > 0 &&
               segs.map((s) => {
                 const len = (s.value / total) * C;

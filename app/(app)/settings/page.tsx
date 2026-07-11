@@ -5,7 +5,8 @@ import { env, configured } from "@/lib/env";
 import { availableProviders, LATEST_CHAT_MODELS } from "@/lib/ai/providers";
 import { researchProviderAvailable } from "@/lib/ai/research";
 import { TOOL_REGISTRY } from "@/lib/ai/tools";
-import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldAlert, Lock } from "lucide-react";
+import { PrivacyControls } from "@/components/settings/privacy-controls";
 
 export const metadata = { title: "Settings · Aria" };
 
@@ -104,6 +105,28 @@ export default async function SettingsPage() {
           </div>
         </Card>
       </div>
+
+      <Card className="mt-6 p-5">
+        <div className="mb-1 flex items-center gap-2">
+          <Lock className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-semibold">Privacy & data</h2>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Your data stays yours: export everything Aria remembers, or delete it permanently.
+        </p>
+        <div className="mb-4 divide-y divide-border">
+          <StatusRow
+            label="LLM training logs"
+            ok={env.llmTrainingLogsEnabled}
+            detail={
+              env.llmTrainingLogsEnabled
+                ? `Opt-in enabled — retained ${env.llmTrainingLogsTtlDays === 0 ? "forever" : `${env.llmTrainingLogsTtlDays} days`} (LLM_TRAINING_LOGS_TTL_DAYS)`
+                : "Off (default) — chat turns are not stored for training"
+            }
+          />
+        </div>
+        <PrivacyControls />
+      </Card>
 
       <Card className="mt-6 p-5">
         <div className="mb-1 flex items-center gap-2">

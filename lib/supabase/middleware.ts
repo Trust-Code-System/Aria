@@ -36,11 +36,29 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  const authCode = request.nextUrl.searchParams.get("code");
+
+  // Magic-link / OAuth codes must hit /auth/callback to set the session cookie.
+  // Older emails redirected to /chat or /login with ?code= — forward them.
+  if (authCode && pathname !== "/auth/callback") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    if (!url.searchParams.get("next")) {
+      const next =
+        pathname === "/login"
+          ? request.nextUrl.searchParams.get("next") || "/chat"
+          : pathname;
+      url.searchParams.set("next", next);
+    }
+    return NextResponse.redirect(url);
+  }
+
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
@@ -56,6 +74,7 @@ export async function updateSession(request: NextRequest) {
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
+  "/today",
   "/projects",
   "/agents",
   "/connections",
@@ -65,4 +84,7 @@ const PROTECTED_PREFIXES = [
   "/admin",
   "/settings",
   "/chat",
+  "/tasks",
+  "/approvals",
+  "/contacts",
 ];

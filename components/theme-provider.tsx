@@ -15,12 +15,12 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = React.useState<Theme>("dark");
+  const [theme, setTheme] = React.useState<Theme>("light");
 
   React.useEffect(() => {
     const stored = (localStorage.getItem("aria-theme") as Theme) || null;
-    // Default to dark — the Fierce glass design is dark-first.
-    const initial = stored ?? "dark";
+    // Default to light — clean white surface with a violet accent.
+    const initial = stored ?? "light";
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);

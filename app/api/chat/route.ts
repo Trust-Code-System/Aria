@@ -13,6 +13,7 @@ import { runResearch } from "@/lib/ai/research";
 import { apiError } from "@/lib/api";
 import { AppError, configMissing } from "@/lib/errors";
 import { logError } from "@/lib/logging/error-log";
+import { logGeneration } from "@/lib/logging/telemetry";
 import { truncate } from "@/lib/utils";
 import { env } from "@/lib/env";
 import type { Citation } from "@/lib/ai/types";
@@ -214,7 +215,16 @@ export async function POST(req: Request) {
       system,
       messages: modelMessages,
       temperature: mode === "code" || mode === "knowledge" ? 0.2 : 0.5,
-      async onFinish({ text }) {
+      async onFinish({ text, usage }) {
+        // Metadata-only telemetry (no prompt/completion content) — env-gated.
+        logGeneration({
+          name: "chat",
+          model: modelId,
+          latencyMs: Date.now() - started,
+          workspaceId,
+          metadata: { mode },
+          usage,
+        });
         try {
           if (assistantMessageId) {
             await supabase

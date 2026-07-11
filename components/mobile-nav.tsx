@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, ListTodo, ShieldCheck, Users, LayoutDashboard } from "lucide-react";
+import { SquarePen, ListChecks, ShieldCheck, ContactRound, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/ui/haptics";
 
@@ -12,11 +12,11 @@ import { haptic } from "@/lib/ui/haptics";
  * active state. Everything else stays reachable via the top-bar drawer.
  */
 const TABS = [
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/chat", label: "Chat", icon: SquarePen },
+  { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/approvals", label: "Approvals", icon: ShieldCheck },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/contacts", label: "Contacts", icon: ContactRound },
+  { href: "/dashboard", label: "Home", icon: Gauge },
 ];
 
 export function MobileNav() {

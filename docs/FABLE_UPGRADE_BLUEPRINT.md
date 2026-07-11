@@ -281,14 +281,15 @@ suggestions surface as a dismissible queue on /memory with per-item provenance (
 - [x] Connectors enabled — **done 2026-07-10 (Fable).** Real Composio-backed executes in `lib/ai/tools.ts` for gmail_read/gmail_draft/gmail_send, google_calendar (new env `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`), google_drive, slack, notion, github (read-only); each requires an active per-workspace connection, dangerous ones require explicit confirmation, all carry trifecta flags. Browser/postgres/reddit/x stay honest stubs (no safe execution path exists yet). Google Calendar added to the Connections page.
 
 **P2 — personal/business/UX/admin**
-- [ ] Today/daily briefing (page + `briefing` job + scheduler entry point). Depends: jobs (done).
-- [ ] Gmail + Calendar **read-only** surfaces (Composio path first; document token custody). Blocked: OAuth creds.
-- [ ] Workspace switcher + per-workspace isolation e2e.
-- [ ] Playwright e2e: signup→project→upload→cite→export; approval flow; isolation. Blocked: live Supabase.
+- [x] Today/daily briefing — **done 2026-07-10 (Fable).** `/today` (`app/(app)/today/page.tsx`): pending approvals, tasks in flight, contact follow-ups due, suggested-memory review queue, recent knowledge — deterministic (no model cost), RLS-scoped, designed empty states. A scheduled push digest can layer on later via the jobs seam.
+- [ ] Gmail + Calendar **read-only** surfaces on Today (Composio path first; document token custody). Blocked: OAuth auth-config ids.
+- [x] Workspace switcher — **done 2026-07-10 (Fable).** `components/workspaces/workspace-switcher.tsx` (mounted in PageShell on every page): list/switch/create business workspaces; httpOnly cookie holds the preference, membership re-verified on EVERY request in `lib/auth/guards.ts` (forged/stale cookie falls back to default). APIs: `app/api/workspaces` + `/switch`, audit-logged.
+- [x] Playwright e2e — **built 2026-07-10 (Fable).** `playwright.config.ts` + `tests/e2e/smoke.spec.ts` (boot, no raw errors, 11 protected routes redirect to /login) + `tests/e2e/authed.spec.ts` (Today sections, switcher, history search, privacy controls — skips without `E2E_EMAIL/PASSWORD`). `npm run test:e2e` against a running app. ⚠️ Upload→cite→export spec still to add once the live corpus exists.
 - [x] Approval expiry — **done 2026-07-10 (Fable).** Pending approvals lazily expire after 72h when the inbox is read (`app/api/approvals/route.ts`); expired approvals never execute (policy fails safe) and the runtime ignores them so a fresh approval is created on the next run (`lib/agent/runtime.ts`). Inbox badge styling left to the in-flight UI redesign session.
-- [ ] Retention/consent settings page (training logs, memory export/delete, doc retention).
-- [ ] Langfuse + Sentry behind env flags; admin cost/queue panels (redacted).
-- [ ] Conversation list/search; report in-app editing.
+- [x] Privacy & data controls — **done 2026-07-10 (Fable).** Settings now shows training-log status + retention, one-click **export all memories** (`GET /api/memory/export`, audit-logged) and **delete all memories** with type-DELETE confirmation (`POST /api/memory/purge`). Doc-retention policy UI still open.
+- [x] Langfuse telemetry behind env flags — **done 2026-07-10 (Fable).** `lib/logging/telemetry.ts`: dependency-free, fire-and-forget, **metadata only** (model/mode/latency/tokens — never content); wired into chat `onFinish`. Enable with `LANGFUSE_PUBLIC_KEY/SECRET_KEY`. Sentry deferred (needs SDK + config; revisit if error volume outgrows the admin log).
+- [x] Conversation list/search — **done 2026-07-10 (Fable).** `/chat/history`: debounced search, reopen via existing `/chat/[id]`, delete with confirm (`app/api/chat/conversations`). Report in-app editing still open.
+- [ ] Admin cost/queue panels (redacted).
 
 **P3 — advanced (opt-in, evidence-gated)**
 - [ ] Reranker behind flag (only if fixtures show recall gap) · [ ] Allowlisted MCP client + registry table · [ ] Sandboxed browser automation (isolated profile, network allowlist, L2+) · [ ] Voice provider wiring (Deepgram/ElevenLabs) · [ ] AI SDK v5 / Next 15 migration branch.

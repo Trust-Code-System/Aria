@@ -20,19 +20,19 @@ export default function GlobalError({
           minHeight: "100vh",
           alignItems: "center",
           justifyContent: "center",
-          background: "#3f3a31",
-          color: "#f4efe6",
+          background: "#ffffff",
+          color: "#18181b",
         }}
       >
         <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
           <h1 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h1>
-          <p style={{ color: "#c9c2b7", fontSize: 14, marginBottom: 20 }}>
+          <p style={{ color: "#71717a", fontSize: 14, marginBottom: 20 }}>
             Aria hit an unexpected error. Your data is safe. Please try again.
           </p>
           <button
             onClick={reset}
             style={{
-              background: "#9340ff",
+              background: "#6d5cff",
               color: "white",
               border: 0,
               borderRadius: 8,

@@ -3,59 +3,61 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light theme — clean white surface with a violet accent (Clarity-style). */
   :root {
-    --background: 37 12% 24%;
-    --foreground: 41 35% 93%;
-    --card: 34 15% 18%;
-    --card-foreground: 41 35% 93%;
-    --popover: 34 15% 18%;
-    --popover-foreground: 41 35% 93%;
-    --primary: 273 88% 58%;
+    --background: 0 0% 100%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 250 84% 66%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 48 8% 37%;
-    --secondary-foreground: 42 28% 91%;
-    --muted: 44 8% 29%;
-    --muted-foreground: 38 15% 73%;
-    --accent: 282 83% 70%;
-    --accent-foreground: 33 16% 14%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 12%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 250 90% 96%;
+    --accent-foreground: 250 60% 45%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --success: 101 36% 56%;
-    --success-foreground: 34 15% 12%;
-    --warning: 41 77% 67%;
-    --warning-foreground: 34 15% 12%;
-    --border: 39 12% 47%;
-    --input: 38 10% 41%;
-    --ring: 273 88% 64%;
+    --success: 142 64% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 95% 52%;
+    --warning-foreground: 0 0% 100%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 250 84% 66%;
     --radius: 0.75rem;
     --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
 
+  /* Neutral modern dark for the theme toggle. */
   .dark {
-    --background: 37 12% 24%;
-    --foreground: 41 35% 93%;
-    --card: 34 15% 18%;
-    --card-foreground: 41 35% 93%;
-    --popover: 34 15% 18%;
-    --popover-foreground: 41 35% 93%;
-    --primary: 273 88% 58%;
+    --background: 240 10% 8%;
+    --foreground: 0 0% 98%;
+    --card: 240 8% 12%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 8% 12%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 250 84% 68%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 48 8% 37%;
-    --secondary-foreground: 42 28% 91%;
-    --muted: 44 8% 29%;
-    --muted-foreground: 38 15% 73%;
-    --accent: 282 83% 70%;
-    --accent-foreground: 33 16% 14%;
-    --destructive: 0 72% 58%;
+    --secondary: 240 6% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 6% 18%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 250 40% 22%;
+    --accent-foreground: 250 90% 90%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --success: 101 36% 56%;
-    --success-foreground: 34 15% 12%;
-    --warning: 41 77% 67%;
-    --warning-foreground: 34 15% 12%;
-    --border: 39 12% 47%;
-    --input: 38 10% 41%;
-    --ring: 273 88% 64%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 95% 55%;
+    --warning-foreground: 0 0% 10%;
+    --border: 240 5% 22%;
+    --input: 240 5% 22%;
+    --ring: 250 84% 68%;
   }
 
   * {
@@ -77,16 +79,23 @@
     letter-spacing: -0.02em;
   }
 
-  /* Warm ambient background like the Fierce reference. */
+  /* Clean light canvas with a faint violet glow, matching the reference. */
   body {
-    background-color: hsl(37 12% 24%);
+    background-color: hsl(0 0% 100%);
     background-image:
-      radial-gradient(900px 520px at 18% -10%, hsla(36, 20%, 72%, 0.30), transparent 62%),
-      radial-gradient(820px 520px at 94% 4%, hsla(280, 78%, 62%, 0.16), transparent 58%),
-      radial-gradient(900px 760px at 58% 110%, hsla(29, 28%, 18%, 0.72), transparent 64%),
-      linear-gradient(135deg, hsl(38 10% 32%), hsl(42 10% 22%) 42%, hsl(30 15% 16%));
+      radial-gradient(900px 520px at 100% -10%, hsla(250, 90%, 66%, 0.06), transparent 60%),
+      radial-gradient(700px 480px at 0% 0%, hsla(240, 12%, 50%, 0.04), transparent 58%);
     background-attachment: fixed;
     background-repeat: no-repeat;
+  }
+
+  /* Neutral dark ambient for the toggle. */
+  .dark body {
+    background-color: hsl(240 10% 8%);
+    background-image:
+      radial-gradient(900px 520px at 18% -10%, hsla(250, 60%, 60%, 0.10), transparent 62%),
+      radial-gradient(820px 520px at 94% 4%, hsla(250, 78%, 62%, 0.10), transparent 58%),
+      linear-gradient(135deg, hsl(240 10% 10%), hsl(240 10% 7%));
   }
 
   /* ---- Mobile app feel (native smoothness, Claude-app style) ------------ */
@@ -151,33 +160,74 @@
     background: hsl(var(--border));
     border-radius: 9999px;
   }
-  /* Frosted glass surface — the core of the Fierce look. */
+  /* Frosted glass surface — light, clean card look. */
   .glass {
-    background: hsla(42, 9%, 22%, 0.62);
-    backdrop-filter: blur(28px) saturate(135%);
-    -webkit-backdrop-filter: blur(28px) saturate(135%);
-    border: 1px solid hsla(40, 24%, 86%, 0.16);
-    box-shadow: 0 18px 48px rgba(18, 13, 9, 0.38), inset 0 1px 0 hsla(40, 30%, 96%, 0.10);
+    background: hsla(0, 0%, 100%, 0.72);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid hsla(240, 6%, 90%, 0.9);
+    box-shadow: 0 1px 2px rgba(16, 16, 20, 0.04), 0 10px 28px rgba(16, 16, 20, 0.05);
   }
   .glass-hover {
     transition: background 0.2s ease, border-color 0.2s ease;
   }
   .glass-hover:hover {
-    background: hsla(42, 10%, 28%, 0.72);
-    border-color: hsla(40, 24%, 86%, 0.24);
+    background: hsl(240 5% 98%);
+    border-color: hsl(240 6% 84%);
   }
   .glass-panel {
     @apply backdrop-blur-md rounded-2xl;
     background-color: theme('colors.glass.background');
     border: 1px solid theme('colors.glass.border');
-    box-shadow: inset 0 1px 0 rgba(255, 248, 236, 0.08), 0 18px 44px rgba(18, 13, 9, 0.30);
+    box-shadow: 0 1px 2px rgba(16, 16, 20, 0.04), 0 10px 28px rgba(16, 16, 20, 0.05);
   }
   .glass-panel-glow {
     @apply glass-panel;
-    box-shadow: inset 0 1px 0 rgba(255, 248, 236, 0.10), 0 0 24px rgba(147, 64, 255, 0.18);
+    box-shadow: 0 0 24px rgba(109, 92, 255, 0.14), 0 10px 28px rgba(16, 16, 20, 0.06);
   }
   .text-glow {
-    text-shadow: 0 0 12px rgba(255, 244, 225, 0.34), 0 0 22px rgba(147, 64, 255, 0.20);
+    text-shadow: none;
+  }
+
+  /* Aria voice mark: the waveform breathes while the signal point listens. */
+  .aria-mark {
+    overflow: visible;
+    filter: drop-shadow(0 3px 8px rgba(109, 92, 255, 0.16));
+  }
+  .aria-mark-wave {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: aria-wave 3.2s ease-in-out infinite;
+  }
+  .aria-mark-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: aria-pulse 3.2s ease-in-out infinite;
+  }
+  @keyframes aria-wave {
+    0%, 100% { transform: scaleX(1) translateY(0); }
+    50% { transform: scaleX(0.92) translateY(-0.7px); }
+  }
+  @keyframes aria-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.82); }
+    50% { opacity: 1; transform: scale(1.18); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aria-mark-wave,
+    .aria-mark-pulse {
+      animation: none;
+    }
+  }
+
+  /* Dark overrides for the toggle. */
+  .dark .glass {
+    background: hsla(240, 8%, 14%, 0.62);
+    border: 1px solid hsla(240, 10%, 80%, 0.10);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.40), inset 0 1px 0 hsla(0, 0%, 100%, 0.05);
+  }
+  .dark .glass-hover:hover {
+    background: hsla(240, 8%, 20%, 0.72);
+    border-color: hsla(240, 10%, 80%, 0.18);
   }
 }
 
@@ -200,6 +250,6 @@
   @apply rounded bg-muted px-1.5 py-0.5 text-[13px] font-mono;
 }
 .prose-aria pre {
-  @apply my-4 overflow-x-auto rounded-lg bg-[#302c25] p-4 text-[13px] leading-relaxed;
+  @apply my-4 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-[13px] leading-relaxed;
 }
-.prose-aria pre code { @apply bg-transparent p-0 text-[#f4efe6]; }
+.prose-aria pre code { @apply bg-transparent p-0 text-foreground; }

@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { WORKSPACE_COOKIE } from "@/lib/auth/workspace-cookie";
 import { isAdminEmail } from "@/lib/env";
 import { unauthorized, AppError } from "@/lib/errors";
 
@@ -22,9 +24,18 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Active-workspace cookie is a preference, never an authority: membership is
+  // re-verified here on EVERY request, so a stale/forged cookie can only ever
+  // fall back to the user's own default workspace.
+  let workspaceId: string | null = null;
+  const requested = cookies().get(WORKSPACE_COOKIE)?.value;
+  if (requested) {
+    workspaceId = await verifyMembership(supabase, user.id, requested);
+  }
+
   // The `handle_new_user` DB trigger creates the profile + workspace on signup.
   // We read the membership here; if missing (e.g. pre-existing user), bootstrap.
-  let workspaceId = await getDefaultWorkspaceId(supabase, user.id);
+  if (!workspaceId) workspaceId = await getDefaultWorkspaceId(supabase, user.id);
   if (!workspaceId) {
     workspaceId = await bootstrapWorkspace(supabase, user.id, user.email ?? null);
   }
@@ -69,6 +80,20 @@ export async function requireAdminApi(): Promise<SessionContext> {
     });
   }
   return ctx;
+}
+
+async function verifyMembership(
+  supabase: ReturnType<typeof createServerSupabase>,
+  userId: string,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.workspace_id ?? null;
 }
 
 async function getDefaultWorkspaceId(
