@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell";
 import { MemoryClient, type MemoryRow } from "@/components/memory/memory-client";
 
 export const metadata = { title: "Memory · Aria" };
+export const dynamic = "force-dynamic";
 
 export default async function MemoryPage() {
   const ctx = await requireSession();

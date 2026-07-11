@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { AppError, type FeatureArea } from "@/lib/errors";
 import { logError } from "@/lib/logging/error-log";
 
@@ -19,14 +20,17 @@ export async function apiError(
   },
 ): Promise<NextResponse> {
   const isApp = error instanceof AppError;
-  const status = isApp ? error.statusCode : 500;
+  const isZod = error instanceof ZodError;
+  const status = isApp ? error.statusCode : isZod ? 400 : 500;
   const userMessage = isApp
     ? error.userMessage
-    : "Something went wrong. The issue was logged and we can look into it.";
+    : isZod
+      ? error.issues[0]?.message || "Invalid request."
+      : "Something went wrong. The issue was logged and we can look into it.";
 
   const traceId = await logError({
     area: ctx.area,
-    category: isApp ? error.category : "internal",
+    category: isApp ? error.category : isZod ? "validation" : "internal",
     provider: ctx.provider,
     error,
     workspaceId: ctx.workspaceId,
@@ -37,7 +41,11 @@ export async function apiError(
   });
 
   return NextResponse.json(
-    { error: userMessage, traceId, category: isApp ? error.category : "internal" },
+    {
+      error: userMessage,
+      traceId,
+      category: isApp ? error.category : isZod ? "validation" : "internal",
+    },
     { status },
   );
 }

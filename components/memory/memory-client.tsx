@@ -58,14 +58,19 @@ export function MemoryClient({
       const res = await fetch("/api/memory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, type, projectId: projectId || null }),
+        body: JSON.stringify({
+          content: content.trim(),
+          type,
+          projectId: projectId.trim() ? projectId : null,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
       success("Memory added");
       setContent("");
       setAdding(false);
       router.refresh();
+      router.replace("/memory");
     } catch (e) {
       error("Could not add memory", e instanceof Error ? e.message : undefined);
     } finally {
