@@ -13,7 +13,7 @@ import {
   connectionStatusTone,
   isUsableConnectionStatus,
 } from "@/lib/connectors/status";
-import { resolveStoredCapabilities } from "@/lib/connectors/capabilities";
+import { resolveStoredCapabilities } from "@/lib/connectors/capabilities-shared";
 
 export interface ConnectionRow {
   id: string;

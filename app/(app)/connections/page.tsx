@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { PageShell } from "@/components/page-shell";
 import { ConnectionsClient, type ConnectionRow } from "@/components/connections/connections-client";
 import { configured, env } from "@/lib/env";
-import { resolveStoredCapabilities } from "@/lib/connectors/capabilities";
+import { resolveStoredCapabilities } from "@/lib/connectors/capabilities-shared";
 
 export const metadata = { title: "Connections · Aria" };
 export const dynamic = "force-dynamic";

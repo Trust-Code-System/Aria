@@ -4,7 +4,7 @@ import {
   refineStatusAfterProbe,
   capabilitiesFromScopes,
   scopesPayloadForPersist,
-} from "@/lib/connectors/capabilities";
+} from "@/lib/connectors/capabilities-shared";
 
 describe("inferCapabilitiesFromTools", () => {
   it("detects gmail read/draft/send from Composio slugs", () => {
