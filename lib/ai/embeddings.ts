@@ -2,7 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { embed, embedMany } from "ai";
 import { env } from "@/lib/env";
 import { parseModelId } from "@/lib/ai/providers";
-import { configMissing } from "@/lib/errors";
+import { AppError, configMissing } from "@/lib/errors";
 import { withRetry, fetchWithRetry } from "@/lib/net/retry";
 
 /**
@@ -13,12 +13,22 @@ import { withRetry, fetchWithRetry } from "@/lib/net/retry";
  *   - google:gemini-embedding-001    → requested at 1536 (Matryoshka truncation)
  * If you switch to a model with a different native dim, update EMBEDDING_DIM
  * and the vector(...) columns + match RPC together.
+ *
+ * Note: OpenAI and Google vectors are NOT interchangeable. After switching the
+ * embedding provider, re-ingest documents so Knowledge search stays accurate.
  */
 
 export const EMBEDDING_DIM = 1536;
 
-function provider() {
-  return parseModelId(env.defaultEmbeddingModel);
+const GOOGLE_EMBED_MODEL = "gemini-embedding-001";
+const OPENAI_EMBED_MODEL = "text-embedding-3-small";
+
+function preferredProvider(): { provider: "openai" | "google"; model: string } {
+  const { provider, model } = parseModelId(env.defaultEmbeddingModel);
+  if (provider === "google") {
+    return { provider: "google", model: model || GOOGLE_EMBED_MODEL };
+  }
+  return { provider: "openai", model: model || OPENAI_EMBED_MODEL };
 }
 
 export async function embedText(text: string): Promise<number[]> {
@@ -28,9 +38,71 @@ export async function embedText(text: string): Promise<number[]> {
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const { provider: name, model } = provider();
-  if (name === "google") return embedGoogle(texts, model);
-  return embedOpenAI(texts, model);
+
+  const preferred = preferredProvider();
+  const order: Array<{ provider: "openai" | "google"; model: string }> = [preferred];
+  if (preferred.provider === "openai" && env.googleKey) {
+    order.push({ provider: "google", model: GOOGLE_EMBED_MODEL });
+  } else if (preferred.provider === "google" && env.openaiKey) {
+    order.push({ provider: "openai", model: OPENAI_EMBED_MODEL });
+  }
+
+  let lastErr: unknown = null;
+  for (const candidate of order) {
+    try {
+      if (candidate.provider === "google") {
+        return await embedGoogle(texts, candidate.model);
+      }
+      return await embedOpenAI(texts, candidate.model);
+    } catch (err) {
+      lastErr = err;
+      // Only fall through to the next provider on quota / auth / rate-limit.
+      if (!isRecoverableEmbedError(err) || candidate === order[order.length - 1]) {
+        throw toEmbedAppError(err, candidate.provider);
+      }
+    }
+  }
+
+  throw toEmbedAppError(lastErr, preferred.provider);
+}
+
+function isRecoverableEmbedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /429|quota|rate limit|insufficient_quota|401|invalid api key|incorrect api key/i.test(
+    msg,
+  );
+}
+
+function toEmbedAppError(err: unknown, provider: string): AppError {
+  if (err instanceof AppError) return err;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (/429|quota|insufficient_quota/i.test(msg)) {
+    return new AppError({
+      area: "rag",
+      category: "rate_limit",
+      statusCode: 429,
+      userMessage:
+        "Knowledge search needs embeddings, but the embedding provider is out of quota. " +
+        "Add OpenAI billing credits, or set DEFAULT_EMBEDDING_MODEL=google:gemini-embedding-001 and re-upload your files.",
+      internal: { provider, message: msg.slice(0, 300) },
+    });
+  }
+  if (/401|incorrect api key|invalid api key/i.test(msg)) {
+    return new AppError({
+      area: "rag",
+      category: "provider_error",
+      statusCode: 401,
+      userMessage:
+        "The embedding API key looks invalid. Check OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.",
+      internal: { provider, message: msg.slice(0, 300) },
+    });
+  }
+  return new AppError({
+    area: "rag",
+    category: "provider_error",
+    userMessage: "Knowledge search failed while embedding your query. Please try again.",
+    internal: { provider, message: msg.slice(0, 300) },
+  });
 }
 
 // --- OpenAI (via AI SDK) ---------------------------------------------------

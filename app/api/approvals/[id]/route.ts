@@ -5,6 +5,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { logAudit } from "@/lib/logging/error-log";
 import { isApprovable } from "@/lib/agent/approval-policy";
+import { executeApprovedChatTool } from "@/lib/connectors/chat-approval";
 import type { ApprovalStatus, RiskLevel, TaskStatus } from "@/lib/agent/types";
 
 export const runtime = "nodejs";
@@ -31,7 +32,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const { data: approval } = await supabase
       .from("approvals")
-      .select("id, status, task_id, action_type, risk_level")
+      .select("id, status, task_id, action_type, risk_level, tool_name, safe_metadata")
       .eq("id", params.id)
       .eq("workspace_id", ctx.workspaceId)
       .maybeSingle();
@@ -39,7 +40,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       throw new AppError({ area: "approvals", category: "not_found", userMessage: "Approval not found." });
     }
     if (approval.status !== "pending") {
-      throw new AppError({ area: "approvals", category: "validation", userMessage: "This request was already decided." });
+      throw new AppError({
+        area: "approvals",
+        category: "validation",
+        userMessage: "This request was already decided.",
+      });
     }
     // Level 4 actions are blocked by policy — they can be rejected, never approved.
     if (decision === "approve" && !isApprovable(approval.risk_level as RiskLevel)) {
@@ -51,15 +56,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const outcome = OUTCOME[decision];
+    const meta = approval.safe_metadata as { source?: string } | null;
+    const isChatTool = !approval.task_id && meta?.source === "chat";
+
+    let execution: { ok: boolean; result: unknown } | null = null;
+
     const { data: updated, error } = await supabase
       .from("approvals")
-      .update({ status: outcome.approval, decided_at: new Date().toISOString(), decided_by: ctx.userId })
+      .update({
+        status: outcome.approval,
+        decided_at: new Date().toISOString(),
+        decided_by: ctx.userId,
+      })
       .eq("id", params.id)
       .eq("workspace_id", ctx.workspaceId)
       .select("*")
       .single();
     if (error) {
-      throw new AppError({ area: "approvals", category: "internal", userMessage: "Could not record your decision.", internal: error });
+      throw new AppError({
+        area: "approvals",
+        category: "internal",
+        userMessage: "Could not record your decision.",
+        internal: error,
+      });
     }
 
     // Nudge the linked task's state so the loop can resume or stop.
@@ -71,17 +90,46 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .eq("workspace_id", ctx.workspaceId);
     }
 
+    if (decision === "approve" && isChatTool) {
+      try {
+        execution = await executeApprovedChatTool({
+          supabase,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          approvalId: params.id,
+        });
+      } catch (execErr) {
+        throw execErr instanceof AppError
+          ? execErr
+          : new AppError({
+              area: "tools",
+              category: "provider_error",
+              userMessage:
+                "Approved, but the connected app failed to complete the action. Nothing was sent. Check Connections and try again from chat.",
+              internal: execErr,
+            });
+      }
+    }
+
     await logAudit({
       action: "approval.decide",
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
       targetType: "approval",
       targetId: params.id,
-      metadata: { decision, action_type: approval.action_type },
+      metadata: {
+        decision,
+        action_type: approval.action_type,
+        executed: Boolean(execution?.ok),
+      },
     });
 
-    return apiOk({ approval: updated });
+    return apiOk({ approval: updated, execution });
   } catch (error) {
-    return apiError(error, { area: "approvals", workspaceId: ctx?.workspaceId, userId: ctx?.userId });
+    return apiError(error, {
+      area: "approvals",
+      workspaceId: ctx?.workspaceId,
+      userId: ctx?.userId,
+    });
   }
 }

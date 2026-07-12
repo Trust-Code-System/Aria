@@ -21,13 +21,14 @@ import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
 import { configured } from "@/lib/env";
 import { createDraft } from "@/lib/connectors/gmail";
 import { logError } from "@/lib/logging/error-log";
+import { isUsableConnectionStatus } from "@/lib/connectors/status";
 import type { AgentTask, AgentTaskStep } from "@/lib/agent/types";
 
 const EMAIL_ACTIONS = new Set(["send_email", "draft_email", "send_message"]);
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
 
 const SIMULATED_NOTE =
-  "✅ Approved — action recorded (simulated; no real integration is wired for this action type yet).";
+  "⚠️ Demo / unavailable — approved, but no real connector is wired for this action type yet. Nothing was sent or changed externally.";
 
 export interface ExecutionResult {
   /** Markdown appended to the task result — always states what REALLY happened. */
@@ -177,6 +178,6 @@ async function getActiveGmailConnection(
     .eq("workspace_id", ctx.workspaceId)
     .eq("provider", "gmail")
     .maybeSingle();
-  if (!data || data.status !== "active") return null;
+  if (!data || !isUsableConnectionStatus(data.status)) return null;
   return { entityId: data.composio_entity_id ?? ctx.userId };
 }

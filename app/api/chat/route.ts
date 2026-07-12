@@ -22,6 +22,16 @@ import { logGeneration } from "@/lib/logging/telemetry";
 import { truncate } from "@/lib/utils";
 import { env } from "@/lib/env";
 import type { Citation } from "@/lib/ai/types";
+import {
+  classifyChatIntent,
+  intentNeedsMemories,
+  intentNeedsMemorySuggest,
+  intentNeedsTools,
+} from "@/lib/orchestration/intent";
+import {
+  buildChatTools,
+  formatCapabilityPromptSection,
+} from "@/lib/connectors/registry";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,10 +80,18 @@ export async function POST(req: Request) {
 
     const supabase = createServerSupabase();
 
+    const intent = classifyChatIntent({
+      mode,
+      message,
+      hasAttachments: Boolean(attachments?.length),
+    });
+
     let modelId = resolveRoutedChatModelId({
       mode,
       message,
       preferred: resolveUsableChatModelId() ?? undefined,
+      intent,
+      hasImages: Boolean(attachments?.some((a) => a.kind === "image")),
     });
     if (!modelId) throw configMissing("chat", "An LLM provider");
 
@@ -124,7 +142,9 @@ export async function POST(req: Request) {
       content: message,
     });
 
-    const memories = await getContextMemories(supabase, ctx.workspaceId, projectId ?? null);
+    const memories = intentNeedsMemories(intent)
+      ? await getContextMemories(supabase, ctx.workspaceId, projectId ?? null)
+      : [];
     let retrievedContext: string | null = null;
     let citations: Citation[] = [];
 
@@ -149,21 +169,22 @@ export async function POST(req: Request) {
       citations = research.citations;
     }
 
+    const historyLimit = intent === "instant" ? 4 : 20;
     const { data: history } = await supabase
       .from("messages")
       .select("role, content")
       .eq("conversation_id", convId)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(historyLimit);
     const priorMessages = (history ?? [])
       .reverse()
       .filter((m) => m.role !== "system" && String(m.content ?? "").trim().length > 0)
-      .slice(-12)
+      .slice(intent === "instant" ? -4 : -12)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
     let projectName: string | null = null;
     let projectInstructions: string | null = null;
-    if (projectId) {
+    if (projectId && intent !== "instant") {
       const { data: proj } = await supabase
         .from("projects")
         .select("name, instructions")
@@ -173,12 +194,36 @@ export async function POST(req: Request) {
       projectInstructions = proj?.instructions ?? null;
     }
 
+    const workspaceId = ctx.workspaceId;
+    const userId = ctx.userId;
+
+    let connectionCapabilities: string | null = null;
+    let chatTools: Awaited<ReturnType<typeof buildChatTools>> | null = null;
+    const loadTools =
+      env.chatToolsEnabled && intentNeedsTools(intent) && mode !== "knowledge";
+    if (loadTools) {
+      chatTools = await buildChatTools({
+        workspaceId,
+        userId,
+        conversationId: convId ?? null,
+        supabase,
+        intent,
+        message,
+      });
+      connectionCapabilities = formatCapabilityPromptSection(
+        chatTools.capabilityLines,
+        chatTools.composioToolNames,
+      );
+    }
+
     const system = buildSystemPrompt({
       mode: mode as ChatMode,
       projectName,
       projectInstructions,
       memories,
       retrievedContext,
+      connectionCapabilities,
+      compact: intent === "instant",
     });
 
     const { data: assistantRow } = await supabase
@@ -194,9 +239,6 @@ export async function POST(req: Request) {
       .select("id")
       .single();
     const assistantMessageId = assistantRow?.id;
-
-    const workspaceId = ctx.workspaceId;
-    const userId = ctx.userId;
 
     const modelMessages: CoreMessage[] = priorMessages.map((m) => ({
       role: m.role,
@@ -228,6 +270,7 @@ export async function POST(req: Request) {
     const candidates = [modelId, ...fallbackChatModelIds(modelId)];
     let lastErr: unknown = null;
     let result: Awaited<ReturnType<typeof streamText>> | null = null;
+    const runMemorySuggest = intentNeedsMemorySuggest(intent);
 
     for (const candidate of candidates) {
       try {
@@ -235,13 +278,18 @@ export async function POST(req: Request) {
           model: getChatModel(candidate, "chat"),
           system,
           messages: modelMessages,
+          maxSteps: chatTools && Object.keys(chatTools.tools).length ? 5 : 1,
           async onFinish({ text, usage }) {
             logGeneration({
               name: "chat",
               model: candidate,
               latencyMs: Date.now() - started,
               workspaceId,
-              metadata: { mode },
+              metadata: {
+                mode,
+                intent,
+                tools: chatTools?.toolNames.join(",") ?? null,
+              },
               usage,
             });
             try {
@@ -268,19 +316,25 @@ export async function POST(req: Request) {
                 });
               }
 
-              await suggestMemoriesFromTurn({
-                supabase,
-                workspaceId,
-                userId,
-                projectId: projectId ?? null,
-                userMessage: message,
-                assistantMessage: text,
-              });
+              if (runMemorySuggest) {
+                await suggestMemoriesFromTurn({
+                  supabase,
+                  workspaceId,
+                  userId,
+                  projectId: projectId ?? null,
+                  userMessage: message,
+                  assistantMessage: text,
+                });
+              }
             } catch (e) {
               await logError({ area: "chat", error: e, workspaceId, userId });
             }
           },
         };
+        if (chatTools && Object.keys(chatTools.tools).length > 0) {
+          opts.tools = chatTools.tools;
+          opts.toolChoice = "auto";
+        }
         if (supportsTemperature(candidate)) {
           opts.temperature = mode === "code" || mode === "knowledge" ? 0.2 : 0.5;
         }

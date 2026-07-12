@@ -83,8 +83,8 @@ export function AppSidebar() {
             "ml-auto hidden h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-variant hover:text-on-surface md:flex",
             compact && "ml-0",
           )}
-          aria-label={compact ? "Open sidebar" : "Close sidebar"}
-          title={compact ? "Open sidebar" : "Close sidebar"}
+          aria-label={compact ? "Expand sidebar" : "Minimize sidebar"}
+          title={compact ? "Expand sidebar" : "Minimize sidebar"}
         >
           {compact ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
         </button>

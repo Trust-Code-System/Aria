@@ -4,6 +4,7 @@ import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
 import { fetchRecentEmails, triageEmails } from "@/lib/connectors/gmail";
 import { configured } from "@/lib/env";
+import { isUsableConnectionStatus } from "@/lib/connectors/status";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,7 +31,7 @@ export async function POST() {
       .eq("provider", "gmail")
       .maybeSingle();
 
-    if (!conn || conn.status !== "active") {
+    if (!conn || !isUsableConnectionStatus(conn.status)) {
       throw new AppError({
         area: "tools",
         category: "validation",

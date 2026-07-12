@@ -1,9 +1,8 @@
 /**
  * Task-aware model routing with fallbacks.
  *
- * Picks a usable model by mode/complexity, then falls back across providers
- * when the preferred key is missing. Budgets are soft guards (logged via
- * estimate only) — hard token caps belong at the provider/gateway layer later.
+ * Picks a usable model by mode/complexity/intent role, then falls back across
+ * providers when the preferred key is missing.
  */
 import {
   LATEST_CHAT_MODELS,
@@ -14,13 +13,26 @@ import {
   type ProviderName,
 } from "@/lib/ai/providers";
 import type { ChatMode } from "@/lib/ai/prompts";
+import type { ChatIntent } from "@/lib/orchestration/intent";
+import { env } from "@/lib/env";
 
 export type RouteComplexity = "low" | "medium" | "high";
+
+export type ModelRole =
+  | "fast"
+  | "default"
+  | "reasoning"
+  | "research"
+  | "action"
+  | "coding"
+  | "vision";
 
 export interface RouteInput {
   mode: ChatMode;
   message: string;
   preferred?: string;
+  intent?: ChatIntent;
+  hasImages?: boolean;
 }
 
 /** Rough complexity heuristic — no LLM call. */
@@ -30,6 +42,36 @@ export function estimateComplexity(mode: ChatMode, message: string): RouteComple
   if (message.length > 4000) return "high";
   if (message.length > 800) return "medium";
   return "low";
+}
+
+/** Map intent + mode → model role (before provider resolution). */
+export function modelRoleForRoute(input: RouteInput): ModelRole {
+  if (input.hasImages) return "vision";
+  if (input.intent === "instant" || input.intent === "simple_generation") return "fast";
+  if (input.intent === "action") return "action";
+  if (input.intent === "research" || input.mode === "research") return "research";
+  if (input.mode === "code" || input.intent === "complex_reasoning") return "coding";
+  if (input.mode === "report") return "reasoning";
+  const complexity = estimateComplexity(input.mode, input.message);
+  if (complexity === "high") return "reasoning";
+  if (complexity === "low") return "fast";
+  return "default";
+}
+
+function envModelForRole(role: ModelRole): string | null {
+  const map: Record<ModelRole, string> = {
+    fast: env.fastModel,
+    default: env.defaultModel || env.defaultChatModel,
+    reasoning: env.reasoningModel,
+    research: env.researchModelRole || env.defaultResearchModel,
+    action: env.actionModel,
+    coding: env.codingModel,
+    vision: env.visionModel,
+  };
+  const id = (map[role] || "").trim();
+  // Research role may be perplexity:sonar — chat path should not use that as streamText model.
+  if (role === "research" && id.startsWith("perplexity:")) return "";
+  return id || null;
 }
 
 /**
@@ -57,13 +99,32 @@ function modelForProvider(provider: ProviderName): string | null {
   }
 }
 
+function providerAvailableForId(id: string): boolean {
+  const { provider } = parseModelId(id);
+  const avail = availableProviders();
+  return Boolean(avail[provider]);
+}
+
 /**
  * Resolve a chat model id for this turn. Always returns a configured provider
  * when any LLM key exists; otherwise null.
  */
 export function resolveRoutedChatModelId(input: RouteInput): string | null {
-  const complexity = estimateComplexity(input.mode, input.message);
+  const role = modelRoleForRoute(input);
+  const complexity =
+    role === "fast"
+      ? "low"
+      : role === "reasoning" || role === "coding" || role === "research"
+        ? "high"
+        : estimateComplexity(input.mode, input.message);
   const avail = availableProviders();
+
+  // Role env override (FAST_MODEL, ACTION_MODEL, …)
+  const roleModel = envModelForRole(role);
+  if (roleModel) {
+    const upgraded = upgradeRetiredModelId(roleModel);
+    if (providerAvailableForId(upgraded)) return upgraded;
+  }
 
   // Honor explicit preferred if its provider is available.
   if (input.preferred) {
@@ -72,10 +133,8 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
     if (avail[provider]) return upgraded;
   }
 
-  // Default env model via existing resolver (already upgrades retired ids).
   const fallbackDefault = resolveUsableChatModelId(input.preferred);
   if (fallbackDefault && complexity !== "high") {
-    // For low/medium, prefer cheaper providers when default is expensive.
     if (complexity === "low") {
       for (const p of preferredProviders("low")) {
         if (avail[p]) {

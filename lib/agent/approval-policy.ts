@@ -45,7 +45,20 @@ export function resolveApprovalOutcome(
       return { action: "wait" };
     case "approved":
       return { action: "execute" };
+    case "executing":
+      return { action: "wait" }; // claim in progress — do not start a second execution
+    case "succeeded":
+      return {
+        action: "skip",
+        note: "This action already completed successfully. Request a new approval to run it again.",
+      };
+    case "failed":
+      return {
+        action: "skip",
+        note: "Previous execution failed. Request a new approval to retry — do not reuse the old one.",
+      };
     case "rejected":
+    case "cancelled":
       return { action: "cancel_task", note: "You rejected a required action." };
     case "changes_requested":
       return {

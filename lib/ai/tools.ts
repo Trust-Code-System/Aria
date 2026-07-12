@@ -124,7 +124,7 @@ const gmailReadTool: ToolDefinition = {
   // Private data AND untrusted content — email bodies are attacker-authorable.
   capabilities: { readsPrivate: true, acceptsUntrusted: true, communicatesExternally: false },
   permissions: [{ scope: "gmail.readonly", description: "Read email" }],
-  inputSchema: z.object({ max: z.number().int().min(1).max(50).default(15) }),
+  inputSchema: z.object({ max: z.number().int().min(1).max(50).optional() }),
   outputSchema: z.object({ emails: z.array(z.any()) }),
   async execute(input, ctx) {
     const conn = await requireConnection(ctx, "gmail");

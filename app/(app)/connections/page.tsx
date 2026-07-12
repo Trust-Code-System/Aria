@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { PageShell } from "@/components/page-shell";
 import { ConnectionsClient, type ConnectionRow } from "@/components/connections/connections-client";
 import { configured, env } from "@/lib/env";
+import { resolveStoredCapabilities } from "@/lib/connectors/capabilities";
 
 export const metadata = { title: "Connections · Aria" };
 export const dynamic = "force-dynamic";
@@ -12,8 +13,13 @@ export default async function ConnectionsPage() {
   const supabase = createServerSupabase();
   const { data } = await supabase
     .from("connections")
-    .select("id, provider, status, account_label, updated_at")
+    .select("id, provider, status, account_label, updated_at, scopes, capabilities, last_validated_at")
     .eq("workspace_id", ctx.workspaceId);
+
+  const initial: ConnectionRow[] = (data ?? []).map((row) => ({
+    ...row,
+    capabilities: resolveStoredCapabilities(row),
+  }));
 
   return (
     <PageShell
@@ -43,7 +49,7 @@ export default async function ConnectionsPage() {
           salesforce: Boolean(env.composioSalesforceAuthConfigId),
           outlook: Boolean(env.composioOutlookAuthConfigId),
         }}
-        initial={(data ?? []) as ConnectionRow[]}
+        initial={initial}
       />
     </PageShell>
   );

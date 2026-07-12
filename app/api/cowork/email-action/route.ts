@@ -6,6 +6,7 @@ import { AppError } from "@/lib/errors";
 import { createDraft, sendEmail } from "@/lib/connectors/gmail";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { logAudit } from "@/lib/logging/error-log";
+import { isUsableConnectionStatus } from "@/lib/connectors/status";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       .eq("workspace_id", ctx.workspaceId)
       .eq("provider", "gmail")
       .maybeSingle();
-    if (!conn || conn.status !== "active") {
+    if (!conn || !isUsableConnectionStatus(conn.status)) {
       throw new AppError({ area: "tools", category: "validation", userMessage: "Connect your Gmail account first." });
     }
     const entityId = conn.composio_entity_id || conn.user_id || ctx.userId;

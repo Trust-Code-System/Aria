@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
+import { isUsableConnectionStatus } from "@/lib/connectors/status";
 
 interface Metrics {
   projects: number;
@@ -193,14 +194,14 @@ export function FierceDashboard({ name, metrics, series, recent, gmail }: Props)
         {/* RIGHT COLUMN */}
         <div className="flex w-full flex-col gap-5 lg:w-[360px]">
           {/* Connect banner */}
-          {gmail?.status === "active" ? (
+          {isUsableConnectionStatus(gmail?.status) ? (
             <div className="glass flex items-center gap-3 rounded-3xl p-4">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/15 text-success">
                 <Check className="h-5 w-5" />
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium">Gmail connected</p>
-                <p className="truncate text-xs text-muted-foreground">{gmail.label ?? "Ready for triage"}</p>
+                <p className="truncate text-xs text-muted-foreground">{gmail?.label ?? "Ready for triage"}</p>
               </div>
               <Link href="/connections" className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground">
                 Manage

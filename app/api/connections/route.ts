@@ -9,6 +9,7 @@ import {
   deleteConnection,
   authConfigIdFor,
 } from "@/lib/connectors/composio";
+import { stableComposioUserId } from "@/lib/connectors/composio-user";
 import { logAudit } from "@/lib/logging/error-log";
 
 export const runtime = "nodejs";
@@ -20,10 +21,15 @@ export async function GET() {
     const supabase = createServerSupabase();
     const { data } = await supabase
       .from("connections")
-      .select("id, provider, status, account_label, updated_at")
+      .select("id, provider, status, account_label, updated_at, scopes, capabilities, last_validated_at")
       .eq("workspace_id", ctx.workspaceId)
       .order("updated_at", { ascending: false });
-    return apiOk({ connections: data ?? [] });
+    const { resolveStoredCapabilities } = await import("@/lib/connectors/capabilities");
+    const connections = (data ?? []).map((row) => ({
+      ...row,
+      capabilities: resolveStoredCapabilities(row),
+    }));
+    return apiOk({ connections });
   } catch (error) {
     return apiError(error, { area: "tools", workspaceId: ctx?.workspaceId, userId: ctx?.userId });
   }
@@ -47,9 +53,10 @@ export async function POST(req: Request) {
       });
     }
 
+    const composioUserId = stableComposioUserId(ctx.userId);
     const callbackUrl = `${env.appUrl}/api/connections/callback?provider=${encodeURIComponent(provider)}`;
     const { redirectUrl, connectedAccountId } = await initiateConnection({
-      entityId: ctx.userId,
+      entityId: composioUserId,
       authConfigId,
       callbackUrl,
     });
@@ -63,7 +70,7 @@ export async function POST(req: Request) {
           user_id: ctx.userId,
           provider,
           composio_connection_id: connectedAccountId,
-          composio_entity_id: ctx.userId,
+          composio_entity_id: composioUserId,
           status: "pending",
         },
         { onConflict: "workspace_id,provider" },

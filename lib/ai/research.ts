@@ -18,15 +18,24 @@ export interface ResearchResult {
   raw?: unknown;
 }
 
-export function researchProviderAvailable(): "perplexity" | "tavily" | null {
+type ResearchProvider = "perplexity" | "tavily";
+
+export function researchProviderAvailable(): ResearchProvider | null {
   if (env.perplexityKey) return "perplexity";
   if (env.tavilyKey) return "tavily";
   return null;
 }
 
+function availableProviders(): ResearchProvider[] {
+  const list: ResearchProvider[] = [];
+  if (env.perplexityKey) list.push("perplexity");
+  if (env.tavilyKey) list.push("tavily");
+  return list;
+}
+
 export async function runResearch(query: string): Promise<ResearchResult> {
-  const provider = researchProviderAvailable();
-  if (!provider) {
+  const providers = availableProviders();
+  if (providers.length === 0) {
     throw new AppError({
       area: "research",
       category: "config_missing",
@@ -34,8 +43,26 @@ export async function runResearch(query: string): Promise<ResearchResult> {
         "Web research is not configured. Add a PERPLEXITY_API_KEY or TAVILY_API_KEY to enable it.",
     });
   }
-  if (provider === "perplexity") return runPerplexity(query);
-  return runTavily(query);
+
+  let lastErr: unknown = null;
+  for (const provider of providers) {
+    try {
+      if (provider === "perplexity") return await runPerplexity(query);
+      return await runTavily(query);
+    } catch (err) {
+      lastErr = err;
+      // Try the next configured provider when this one fails.
+      if (provider === providers[providers.length - 1]) break;
+    }
+  }
+
+  if (lastErr instanceof AppError) throw lastErr;
+  throw new AppError({
+    area: "research",
+    category: "provider_error",
+    userMessage: "The research provider returned an error. Please try again.",
+    internal: lastErr,
+  });
 }
 
 async function runPerplexity(query: string): Promise<ResearchResult> {
@@ -64,9 +91,9 @@ async function runPerplexity(query: string): Promise<ResearchResult> {
     const text = await res.text().catch(() => "");
     throw new AppError({
       area: "research",
-      category: "provider_error",
-      statusCode: res.status,
-      userMessage: "The research provider returned an error. Please try again.",
+      category: res.status === 401 || res.status === 403 ? "provider_error" : "provider_error",
+      statusCode: res.status >= 400 && res.status < 600 ? res.status : 502,
+      userMessage: friendlyResearchHttpError("Perplexity", res.status),
       internal: `perplexity ${res.status}: ${text.slice(0, 300)}`,
     });
   }
@@ -85,26 +112,19 @@ async function runPerplexity(query: string): Promise<ResearchResult> {
 }
 
 async function runTavily(query: string): Promise<ResearchResult> {
-  // Read-only query — safe to retry on transient failures.
-  const res = await fetchWithRetry("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: env.tavilyKey,
-      query,
-      search_depth: "advanced",
-      include_answer: true,
-      max_results: 8,
-    }),
-  });
+  // Prefer advanced; fall back to basic if the plan rejects advanced depth.
+  let res = await tavilySearch(query, "advanced");
+  if (!res.ok && (res.status === 400 || res.status === 403)) {
+    res = await tavilySearch(query, "basic");
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new AppError({
       area: "research",
       category: "provider_error",
-      statusCode: res.status,
-      userMessage: "The research provider returned an error. Please try again.",
+      statusCode: res.status >= 400 && res.status < 600 ? res.status : 502,
+      userMessage: friendlyResearchHttpError("Tavily", res.status),
       internal: `tavily ${res.status}: ${text.slice(0, 300)}`,
     });
   }
@@ -129,6 +149,33 @@ async function runTavily(query: string): Promise<ResearchResult> {
         .join("\n\n");
 
   return { answer, citations, provider: "tavily", raw: data };
+}
+
+async function tavilySearch(query: string, search_depth: "basic" | "advanced") {
+  return fetchWithRetry("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: env.tavilyKey,
+      query,
+      search_depth,
+      include_answer: true,
+      max_results: 8,
+    }),
+  });
+}
+
+function friendlyResearchHttpError(provider: string, status: number): string {
+  if (status === 401 || status === 403) {
+    return `${provider} rejected the API key. Check PERPLEXITY_API_KEY / TAVILY_API_KEY in .env.local.`;
+  }
+  if (status === 429) {
+    return `${provider} is rate-limiting research requests. Wait a moment and try again.`;
+  }
+  if (status >= 500) {
+    return `${provider} is temporarily unavailable. Please try again shortly.`;
+  }
+  return `The research provider (${provider}) returned an error. Please try again.`;
 }
 
 function safeHost(url: string): string {

@@ -2,12 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { configured } from "@/lib/env";
+import { isUsableConnectionStatus } from "@/lib/connectors/status";
 
 /**
- * Resolve the workspace's ACTIVE connection for a provider. Uses the caller's
+ * Resolve the workspace's usable connection for a provider. Uses the caller's
  * RLS-scoped client, so it can only ever see the caller's own workspace rows.
  * Returns null when connectors are unconfigured or the app isn't connected —
  * callers must degrade honestly (clear "connect it first" message), never fake.
+ *
+ * "Usable" means status is connected (or legacy `active`), not merely that a
+ * row exists.
  */
 export async function getActiveConnection(
   workspaceId: string,
@@ -22,7 +26,7 @@ export async function getActiveConnection(
     .eq("workspace_id", workspaceId)
     .eq("provider", provider)
     .maybeSingle();
-  if (!data || data.status !== "active") return null;
+  if (!data || !isUsableConnectionStatus(data.status)) return null;
   return {
     entityId: data.composio_entity_id ?? data.user_id,
     connectedAccountId: data.composio_connection_id ?? undefined,

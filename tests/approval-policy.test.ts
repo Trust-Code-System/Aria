@@ -49,6 +49,12 @@ describe("resolveApprovalOutcome", () => {
     expect(resolveApprovalOutcome(2, "expired").action).toBe("wait");
   });
 
+  it("succeeded or failed approvals never re-execute", () => {
+    expect(resolveApprovalOutcome(2, "succeeded").action).toBe("skip");
+    expect(resolveApprovalOutcome(2, "failed").action).toBe("skip");
+    expect(resolveApprovalOutcome(2, "executing").action).toBe("wait");
+  });
+
   it("unknown statuses fail safe (wait, never execute)", () => {
     expect(resolveApprovalOutcome(2, "garbage" as never).action).toBe("wait");
   });

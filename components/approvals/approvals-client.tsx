@@ -56,6 +56,15 @@ export function ApprovalsClient({ initial }: { initial: Approval[] }) {
         } else {
           error("Approved, but the task could not resume", "Open it in Tasks and press Run.");
         }
+      } else if (decision === "approve" && data.execution?.ok) {
+        haptic("success");
+        const ref = data.execution?.receipt?.provider_reference;
+        success(
+          "Approved and completed",
+          ref
+            ? `Provider confirmed the action (ref: ${ref}).`
+            : "The connected app confirmed the action.",
+        );
       } else {
         if (decision === "reject") haptic("error");
         success(

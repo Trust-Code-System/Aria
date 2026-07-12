@@ -25,7 +25,11 @@ export type ApprovalStatus =
   | "approved"
   | "rejected"
   | "changes_requested"
-  | "expired";
+  | "expired"
+  | "executing"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
 export type RiskLevel = 0 | 1 | 2 | 3 | 4;
 

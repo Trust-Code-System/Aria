@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, Badge, Spinner, Textarea, Input, Label } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import {
+  capabilityHint,
+  connectionStatusLabel,
+  connectionStatusTone,
+  isUsableConnectionStatus,
+} from "@/lib/connectors/status";
+import { resolveStoredCapabilities } from "@/lib/connectors/capabilities";
 
 export interface ConnectionRow {
   id: string;
@@ -14,6 +21,8 @@ export interface ConnectionRow {
   status: string;
   account_label: string | null;
   updated_at: string;
+  scopes?: unknown;
+  capabilities?: { read?: boolean; draft?: boolean; send?: boolean; write?: boolean } | null;
 }
 
 interface TriagedEmail {
@@ -37,8 +46,8 @@ interface IntegrationApp {
 }
 
 const APPS: IntegrationApp[] = [
-  { provider: "gmail", name: "Gmail", logo: "M", logoUrl: "https://cdn.simpleicons.org/gmail", category: "Email", accent: "#ea4335", desc: "Read, triage, draft, and send email with confirmation." },
-  { provider: "google_calendar", name: "Google Calendar", logo: "C", logoUrl: "https://cdn.simpleicons.org/googlecalendar", category: "Calendar", accent: "#4285f4", desc: "Read your agenda and create events with confirmation." },
+  { provider: "gmail", name: "Gmail", logo: "M", logoUrl: "https://cdn.simpleicons.org/gmail", category: "Email", accent: "#ea4335", desc: "Connect Gmail. Aria shows real read/draft/send capabilities after refresh." },
+  { provider: "google_calendar", name: "Google Calendar", logo: "C", logoUrl: "https://cdn.simpleicons.org/googlecalendar", category: "Calendar", accent: "#4285f4", desc: "Connect Calendar. Create events only when write tools are verified." },
   { provider: "google_drive", name: "Google Drive", logo: "D", logoUrl: "https://cdn.simpleicons.org/googledrive", category: "Files", accent: "#34a853", desc: "Search files, reference docs, and pull workspace context." },
   { provider: "slack", name: "Slack", logo: "S", logoUrl: "https://api.iconify.design/logos:slack-icon.svg", category: "Team chat", accent: "#611f69", desc: "Summarize channels, draft replies, and prepare updates." },
   { provider: "notion", name: "Notion", logo: "N", logoUrl: "https://cdn.simpleicons.org/notion", category: "Knowledge", accent: "#111827", desc: "Read pages, create notes, and organize project knowledge." },
@@ -135,12 +144,15 @@ export function ConnectionsClient({
           body: JSON.stringify({ provider }),
         });
         const data = await res.json().catch(() => ({}));
-        if (res.ok && data.status === "active") {
+        if (res.ok && data.status === "connected") {
           success("Connected", `${provider.replace(/_/g, " ")} is linked.`);
           if (data.connection) {
             setRows((prev) => {
               const next = prev.filter((r) => r.provider !== provider);
-              next.push(data.connection as ConnectionRow);
+              next.push({
+                ...(data.connection as ConnectionRow),
+                capabilities: data.capabilities ?? data.connection.capabilities ?? null,
+              });
               return next;
             });
           }
@@ -148,8 +160,14 @@ export function ConnectionsClient({
           await reloadConnections();
           return;
         }
-        if (res.ok && data.status === "error") {
-          error("Connection failed", "Authorization did not complete.");
+        if (
+          res.ok &&
+          data.status &&
+          data.status !== "pending" &&
+          data.status !== "reconnecting" &&
+          data.status !== "connected"
+        ) {
+          error("Connection failed", connectionStatusLabel(data.status));
           setBusy(null);
           await reloadConnections();
           return;
@@ -172,6 +190,42 @@ export function ConnectionsClient({
     setBusy(null);
     error("Still waiting", "Finish authorizing in the other tab, then try Connect again.");
     await reloadConnections();
+  }
+
+  async function refresh(provider: string) {
+    setBusy(provider);
+    try {
+      const res = await fetch("/api/connections/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Refresh failed");
+      if (data.connection) {
+        setRows((prev) => {
+          const next = prev.filter((r) => r.provider !== provider);
+          next.push({
+            ...(data.connection as ConnectionRow),
+            capabilities: data.capabilities ?? data.connection.capabilities ?? null,
+          });
+          return next;
+        });
+      }
+      success(
+        "Status updated",
+        data.capabilities?.send
+          ? "Send capability verified (approvals still required)."
+          : data.capabilities
+            ? "Capabilities refreshed."
+            : connectionStatusLabel(data.status),
+      );
+      await reloadConnections();
+    } catch (e) {
+      error("Could not refresh", e instanceof Error ? e.message : undefined);
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function disconnect(id: string, provider: string) {
@@ -211,21 +265,24 @@ export function ConnectionsClient({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {APPS.map((app) => {
           const conn = byProvider[app.provider];
-          const active = conn?.status === "active";
+          const usable = isUsableConnectionStatus(conn?.status);
           const configured = Boolean(configuredProviders[app.provider]);
           const canConnect = connectorsEnabled && configured;
+          const caps =
+            conn?.capabilities ?? resolveStoredCapabilities({ scopes: conn?.scopes, capabilities: conn?.capabilities });
+          const hint = capabilityHint(app.provider, conn?.status, caps);
           return (
             <Card key={app.provider} className="group p-5 transition hover:-translate-y-0.5 hover:border-primary/35">
               <div className="flex items-start justify-between">
                 <LogoMark app={app} />
                 {conn ? (
-                  <Badge tone={active ? "success" : conn.status === "pending" ? "warning" : "destructive"}>
-                    {conn.status}
+                  <Badge tone={connectionStatusTone(conn.status)}>
+                    {connectionStatusLabel(conn.status)}
                   </Badge>
                 ) : !configured ? (
-                  <Badge tone="warning">Setup needed</Badge>
+                  <Badge tone="warning">Setup incomplete</Badge>
                 ) : (
-                  <Badge tone="muted">Not connected</Badge>
+                  <Badge tone="muted">Disconnected</Badge>
                 )}
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
@@ -238,21 +295,35 @@ export function ConnectionsClient({
               {conn?.account_label && (
                 <p className="mt-1 text-xs text-muted-foreground">{conn.account_label}</p>
               )}
+              {hint && (
+                <p className="mt-2 text-xs text-warning">{hint}</p>
+              )}
               <div className="mt-4 flex gap-2">
-                {active ? (
-                  <Button variant="outline" size="sm" onClick={() => disconnect(conn.id, app.provider)} disabled={busy === conn.id}>
-                    {busy === conn.id ? <Spinner /> : <Trash2 className="h-4 w-4" />} Disconnect
-                  </Button>
+                {usable ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void refresh(app.provider)}
+                      disabled={busy === app.provider || busy === conn!.id}
+                    >
+                      {busy === app.provider ? <Spinner /> : null} Refresh
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => disconnect(conn!.id, app.provider)} disabled={busy === conn!.id}>
+                      {busy === conn!.id ? <Spinner /> : <Trash2 className="h-4 w-4" />} Disconnect
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     size="sm"
                     onClick={() => connect(app.provider)}
                     disabled={!canConnect || busy === app.provider}
                   >
-                    {busy === app.provider ? <Spinner /> : <Plug className="h-4 w-4" />} Connect
+                    {busy === app.provider ? <Spinner /> : <Plug className="h-4 w-4" />}{" "}
+                    {conn ? "Reconnect" : "Connect"}
                   </Button>
                 )}
-                {!canConnect && !active && (
+                {!canConnect && !usable && (
                   <span className="self-center text-xs text-muted-foreground">
                     {connectorsEnabled ? "Add auth config" : "Add Composio key"}
                   </span>
@@ -263,8 +334,8 @@ export function ConnectionsClient({
         })}
       </div>
 
-      {/* Cowork: email triage — only when Gmail is active */}
-      {gmail?.status === "active" && <EmailTriage />}
+      {/* Cowork: email triage — only when Gmail is usable */}
+      {isUsableConnectionStatus(gmail?.status) && <EmailTriage />}
     </div>
   );
 }

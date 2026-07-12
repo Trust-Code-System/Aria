@@ -86,22 +86,35 @@ export async function initiateConnection(params: {
   };
 }
 
-/** Current status of a connected account (pending -> active after consent). */
+import {
+  mapComposioAccountStatus,
+  type ConnectionStatus,
+} from "@/lib/connectors/status";
+
+/** Current status of a connected account (pending → connected after consent). */
 export async function getConnectionStatus(connectedAccountId: string): Promise<{
-  status: string;
+  status: ConnectionStatus;
   label?: string;
+  providerAccountId?: string;
+  rawStatus?: string;
 }> {
   const data = await composio<any>(`${V3}/connected_accounts/${connectedAccountId}`);
-  const raw = String(data.status ?? data.data?.status ?? "").toUpperCase();
-  const status =
-    raw.includes("ACTIVE")
-      ? "active"
-      : raw.includes("FAIL") || raw.includes("ERROR") || raw.includes("EXPIRED")
-        ? "error"
-        : "pending"; // INITIALIZING / INITIATED
+  const raw = String(data.status ?? data.data?.status ?? "");
+  const status = mapComposioAccountStatus(raw);
   const label =
-    data.data?.email ?? data.meta?.email ?? data.params?.account_email ?? undefined;
-  return { status, label };
+    data.data?.email ??
+    data.meta?.email ??
+    data.params?.account_email ??
+    data.email ??
+    undefined;
+  const providerAccountId =
+    data.data?.id ?? data.account_id ?? data.uuid ?? data.id ?? undefined;
+  return {
+    status,
+    label: label ? String(label) : undefined,
+    providerAccountId: providerAccountId ? String(providerAccountId) : undefined,
+    rawStatus: raw || undefined,
+  };
 }
 
 export async function deleteConnection(connectedAccountId: string): Promise<void> {

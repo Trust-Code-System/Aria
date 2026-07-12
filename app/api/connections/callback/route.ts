@@ -4,6 +4,13 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getConnectionStatus } from "@/lib/connectors/composio";
 import { env } from "@/lib/env";
 import { logError } from "@/lib/logging/error-log";
+import { persistableConnectionStatus, statusDetailForStorage } from "@/lib/connectors/status";
+import { sanitizeForLog } from "@/lib/security/sanitize";
+import {
+  probeProviderCapabilities,
+  refineStatusAfterProbe,
+  scopesPayloadForPersist,
+} from "@/lib/connectors/capabilities";
 
 export const runtime = "nodejs";
 
@@ -44,19 +51,36 @@ export async function GET(req: Request) {
         .eq("id", conn.id);
     }
 
-    const { status, label } = await getConnectionStatus(accountId);
-    if (conn) {
-      await supabase
-        .from("connections")
-        .update({
-          status,
-          account_label: label ?? null,
-          error_message: status === "error" ? "Authorization failed" : null,
-        })
-        .eq("id", conn.id);
+    const remote = await getConnectionStatus(accountId);
+    let status = remote.status;
+    let scopesUpdate: Record<string, unknown> | null = null;
+    if (status === "connected") {
+      try {
+        const caps = await probeProviderCapabilities({
+          supabaseUserId: ctx.userId,
+          provider: provider || "gmail",
+        });
+        status = refineStatusAfterProbe(status, provider || "gmail", caps);
+        if (caps) scopesUpdate = scopesPayloadForPersist(null, caps) as Record<string, unknown>;
+      } catch (probeErr) {
+        await logError({ area: "tools", error: probeErr, provider: "composio" });
+      }
     }
 
-    return back(status === "active" || oauthStatus === "success" ? "connected" : status);
+    if (conn) {
+      const detail = statusDetailForStorage(status);
+      const patch: Record<string, unknown> = {
+        status: persistableConnectionStatus(status),
+        account_label: remote.label ?? null,
+        error_message: detail
+          ? sanitizeForLog(`${detail}: authorization incomplete`)
+          : null,
+      };
+      if (scopesUpdate) patch.scopes = scopesUpdate;
+      await supabase.from("connections").update(patch).eq("id", conn.id);
+    }
+
+    return back(status === "connected" || oauthStatus === "success" ? "connected" : "error");
   } catch (error) {
     await logError({ area: "tools", error, provider: "composio" });
     return back("error");

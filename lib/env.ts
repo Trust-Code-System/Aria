@@ -49,6 +49,27 @@ export const env = {
     str(process.env.DEFAULT_EMBEDDING_MODEL) || "openai:text-embedding-3-small",
   defaultResearchModel: str(process.env.DEFAULT_RESEARCH_MODEL) || "perplexity:sonar",
 
+  /**
+   * Role-based model ids (optional). Empty → fall back to DEFAULT_CHAT_MODEL /
+   * provider latest defaults in routing.
+   */
+  fastModel: str(process.env.FAST_MODEL),
+  defaultModel: str(process.env.DEFAULT_MODEL),
+  reasoningModel: str(process.env.REASONING_MODEL),
+  researchModelRole: str(process.env.RESEARCH_MODEL),
+  actionModel: str(process.env.ACTION_MODEL),
+  codingModel: str(process.env.CODING_MODEL),
+  visionModel: str(process.env.VISION_MODEL),
+  embeddingModelRole: str(process.env.EMBEDDING_MODEL),
+
+  /**
+   * When false, chat will not register connector tools (rollback switch).
+   * Default true.
+   */
+  chatToolsEnabled: !["0", "false", "no"].includes(
+    str(process.env.CHAT_TOOLS_ENABLED).toLowerCase(),
+  ),
+
   adminEmails: str(process.env.ADMIN_EMAIL)
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -92,9 +113,11 @@ export const configured = {
     return Boolean(env.openaiKey || env.anthropicKey || env.googleKey);
   },
   get embeddings() {
-    // Embeddings work with OpenAI or Google, depending on DEFAULT_EMBEDDING_MODEL.
+    // Either provider can embed (1536-dim). Prefer the configured default's key,
+    // but treat the feature as available if any embedding-capable key exists.
     const isGoogle = env.defaultEmbeddingModel.startsWith("google:");
-    return Boolean(isGoogle ? env.googleKey : env.openaiKey);
+    if (isGoogle) return Boolean(env.googleKey || env.openaiKey);
+    return Boolean(env.openaiKey || env.googleKey);
   },
   get research() {
     return Boolean(env.perplexityKey || env.tavilyKey);
