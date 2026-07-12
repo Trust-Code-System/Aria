@@ -258,9 +258,23 @@ export async function buildComposioAiSdkTools(params: {
     void names;
   }
 
+  // Prefer read/draft/send essentials for Gmail — full toolkit floods the model
+  // and often breaks Google/OpenAI tool calling (too many schemas).
+  const ESSENTIAL_GMAIL =
+    /^(GMAIL_SEND_EMAIL|GMAIL_SEND_DRAFT|GMAIL_CREATE_EMAIL_DRAFT|GMAIL_FETCH_EMAILS|GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID|GMAIL_GET_PROFILE|GMAIL_LIST_THREADS|GMAIL_FETCH_MESSAGE_BY_THREAD_ID)$/i;
+  const ESSENTIAL_CALENDAR =
+    /^(GOOGLECALENDAR_FIND_EVENT|GOOGLECALENDAR_LIST_EVENTS|GOOGLECALENDAR_CREATE_EVENT|GOOGLECALENDAR_FIND_FREE_SLOTS|GOOGLECALENDAR_GET_CURRENT_DATE_TIME)$/i;
+
   for (const item of rawTools) {
     const slug = item.function?.name || item.name;
     if (!slug) continue;
+    const upper = slug.toUpperCase();
+    if (upper.startsWith("GMAIL") && !ESSENTIAL_GMAIL.test(slug)) continue;
+    if (upper.includes("CALENDAR") && !ESSENTIAL_CALENDAR.test(slug)) continue;
+    // Cap non-gmail toolkits to avoid schema bloat
+    if (!upper.startsWith("GMAIL") && !upper.includes("CALENDAR") && Object.keys(tools).length >= 12) {
+      continue;
+    }
     const description = item.function?.description || item.description || slug;
     const parameters = (item.function?.parameters || item.parameters || {
       type: "object",

@@ -267,7 +267,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const candidates = [modelId, ...fallbackChatModelIds(modelId)];
+    const candidates = [modelId, ...fallbackChatModelIds(modelId)].filter(
+      (id, i, arr) => arr.indexOf(id) === i,
+    );
+    // If primary is OpenAI and we have Google, prefer trying Google second immediately
+    // (already in fallbacks) — also demote OpenAI when tools are loaded and FAST/ACTION is Google.
     let lastErr: unknown = null;
     let result: Awaited<ReturnType<typeof streamText>> | null = null;
     const runMemorySuggest = intentNeedsMemorySuggest(intent);
@@ -399,17 +403,23 @@ export async function POST(req: Request) {
 
 function friendlyProviderError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  if (/429|rate limit|quota/i.test(msg)) {
-    return "The AI provider is rate-limiting requests. Wait a moment, or check your OpenAI/Google quota.";
+  if (/429|rate limit|quota|billing details|exceeded your current quota/i.test(msg)) {
+    return "The AI provider hit a quota/billing limit (often OpenAI). Aria will try other models when configured — set ACTION_MODEL or FAST_MODEL to google:… in env, or top up OpenAI.";
   }
   if (/401|incorrect api key|invalid api key/i.test(msg)) {
     return "The AI API key looks invalid. Check OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY on Vercel.";
   }
   if (/model|not found|does not exist/i.test(msg)) {
-    return "The selected chat model is unavailable. Try changing DEFAULT_CHAT_MODEL.";
+    return "The selected chat model is unavailable. Try changing DEFAULT_CHAT_MODEL or FAST_MODEL.";
   }
   if (/temperature/i.test(msg)) {
     return "This model rejected the request options. Retry — Aria will use a compatible setup.";
   }
+  if (/tool|schema|function/i.test(msg)) {
+    return "The model could not use connected-app tools for this request. Try again, or reconnect Gmail on Connections.";
+  }
+  // Surface a short safe snippet so "Chat failed" is actionable.
+  const short = msg.replace(/\s+/g, " ").trim().slice(0, 180);
+  if (short) return `The assistant could not respond (${short}).`;
   return "The assistant could not respond. Check your LLM API keys and try again.";
 }

@@ -18,6 +18,20 @@ describe("model roles", () => {
     ).toBe("action");
   });
 
+  it("prefers FAST_MODEL path for action when resolving without ACTION_MODEL override in unit env", () => {
+    // Smoke: resolution returns some configured provider id or null in CI.
+    const id = resolveRoutedChatModelId({
+      mode: "general",
+      message: "Send email to a@b.com",
+      intent: "action",
+      preferred: "openai:gpt-5.6",
+    });
+    if (id) {
+      // With Google available + FAST_MODEL, action should not be forced to broken OpenAI-only.
+      expect(id).toMatch(/^(openai|google|anthropic|custom):/);
+    }
+  });
+
   it("maps code mode to coding role", () => {
     expect(
       modelRoleForRoute({

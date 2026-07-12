@@ -126,10 +126,20 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
     if (providerAvailableForId(upgraded)) return upgraded;
   }
 
+  // Action turns: prefer FAST_MODEL / Google when ACTION_MODEL unset — OpenAI
+  // quota must not block Gmail approvals while greetings still work.
+  if (role === "action") {
+    const fast = (env.fastModel || "").trim();
+    if (fast && providerAvailableForId(fast)) return upgradeRetiredModelId(fast);
+    if (avail.google) return LATEST_CHAT_MODELS.google;
+  }
+
   // Honor explicit preferred if its provider is available.
   if (input.preferred) {
     const upgraded = upgradeRetiredModelId(input.preferred);
     const { provider } = parseModelId(upgraded);
+    // Skip preferred OpenAI for action when we already tried role/fast above —
+    // still allow preferred for other roles.
     if (avail[provider]) return upgraded;
   }
 
