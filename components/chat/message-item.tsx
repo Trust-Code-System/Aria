@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Check, ThumbsUp, ThumbsDown, FileDown, Volume2, Square, FileText } from "lucide-react";
+import { Copy, Check, ThumbsUp, ThumbsDown, FileDown, Volume2, Square, FileText, RotateCcw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/chat/markdown";
 import { CitationList } from "@/components/chat/citation-list";
@@ -9,12 +9,22 @@ import type { Citation } from "@/lib/ai/types";
 import { useToast } from "@/components/ui/toast";
 import { speak, stopSpeaking, speechSynthesisSupported } from "@/lib/voice/speech";
 import { useTypewriter } from "@/components/chat/use-typewriter";
+import { ApprovalCard } from "@/components/chat/approval-card";
+import type { ChatStreamEvent } from "@/lib/chat/stream-protocol";
+import { MemoryEventCard } from "@/components/chat/memory-event-card";
 
 export interface ChatAttachment {
   kind: "image" | "document";
   name: string;
   /** Present for images so we can render a thumbnail in the bubble. */
   dataUrl?: string;
+}
+
+export interface ChatRequestAttachment {
+  kind: "image" | "document";
+  name: string;
+  dataUrl?: string;
+  text?: string;
 }
 
 export interface ChatMessage {
@@ -24,14 +34,22 @@ export interface ChatMessage {
   citations?: Citation[];
   attachments?: ChatAttachment[];
   pending?: boolean;
+  status?: "pending" | "streaming" | "completed" | "failed" | "cancelled";
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  traceId?: string | null;
+  events?: ChatStreamEvent[];
+  requestAttachments?: ChatRequestAttachment[];
 }
 
 export function MessageItem({
   message,
   onSaveReport,
+  onRetry,
 }: {
   message: ChatMessage;
   onSaveReport?: (m: ChatMessage) => void;
+  onRetry?: (m: ChatMessage) => void;
 }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = React.useState(false);
@@ -104,6 +122,30 @@ export function MessageItem({
         <Markdown content={typed.caret ? typed.text + "▌" : typed.text} />
       )}
       {message.citations && <CitationList citations={message.citations} />}
+      {message.events?.map((event, index) => {
+        if (event.type === "approval") {
+          return <ApprovalCard key={`${event.approvalId}-${index}`} approvalId={event.approvalId} summary={event.summary} />;
+        }
+        if (event.type === "memory_saved" || event.type === "memory_suggestion") {
+          return <MemoryEventCard key={`${event.type}-${event.memoryId}-${index}`} memoryId={event.memoryId} content={event.content} kind={event.type === "memory_saved" ? "saved" : "suggested"} />;
+        }
+        return null;
+      })}
+
+      {(message.status === "failed" || message.status === "cancelled") && (
+        <div role="alert" className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div className="min-w-0 flex-1">
+              <p>{message.errorMessage || (message.status === "cancelled" ? "This response was cancelled." : "This response failed.")}</p>
+              {message.traceId && <p className="mt-1 text-[11px] text-muted-foreground">Trace {message.traceId}</p>}
+              {onRetry && (
+                <ButtonRetry onClick={() => onRetry(message)} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {!message.pending && message.content && (
         <div className="mt-2 flex items-center gap-1 text-muted-foreground opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
@@ -129,6 +171,14 @@ export function MessageItem({
         </div>
       )}
     </div>
+  );
+}
+
+function ButtonRetry({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted">
+      <RotateCcw className="h-3.5 w-3.5" /> Retry original turn
+    </button>
   );
 }
 

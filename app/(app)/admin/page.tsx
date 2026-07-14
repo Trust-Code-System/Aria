@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/primitives";
 import { configured } from "@/lib/env";
 import { AdminErrors, type ErrorRow } from "@/components/admin/admin-errors";
 import { AlertTriangle, Activity, MessageSquareWarning, FileWarning } from "lucide-react";
+import { getSystemHealth } from "@/lib/admin/system-health";
 
 export const metadata = { title: "Admin · Aria" };
 
@@ -38,8 +39,9 @@ export default async function AdminPage() {
   }
 
   const admin = createAdminSupabase();
-  const [errRes, unresolvedRes, failedDocsRes, feedbackRes, downFeedbackRes, tasksRes, approvalsRes, auditRes] =
+  const [health, errRes, unresolvedRes, failedDocsRes, feedbackRes, downFeedbackRes, tasksRes, approvalsRes, auditRes] =
     await Promise.all([
+      getSystemHealth(admin),
       admin.from("error_logs").select("*").order("created_at", { ascending: false }).limit(200),
       admin.from("error_logs").select("id", { count: "exact", head: true }).eq("resolved", false),
       admin.from("documents").select("id", { count: "exact", head: true }).eq("ingestion_status", "failed"),
@@ -85,6 +87,30 @@ export default async function AdminPage() {
       title="Admin"
       description="System health, failures, and feedback. Private content, secrets, and full prompts are never logged."
     >
+      <Card className="mb-6 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Production readiness</h2>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase ${
+            health.level === "ok"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+              : health.level === "warning"
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
+          }`}>{health.level}</span>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {health.checks.map((check) => (
+            <div key={check.name} className="rounded-xl border border-border p-3">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${check.level === "ok" ? "bg-emerald-500" : check.level === "warning" ? "bg-amber-500" : "bg-red-500"}`} />
+                <p className="text-sm font-medium">{check.name}</p>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => {
           const Icon = s.icon;

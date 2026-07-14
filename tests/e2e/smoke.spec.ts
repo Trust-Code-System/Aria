@@ -16,8 +16,8 @@ test("landing page renders without raw errors", async ({ page }) => {
 
 test("login page shows the auth form", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.locator("input[type=email]").first()).toBeVisible();
-  await expect(page.locator("input[type=password]").first()).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /email/i }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /sign in|send.*sign-in link|continue/i }).first()).toBeVisible();
 });
 
 const PROTECTED = [

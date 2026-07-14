@@ -18,6 +18,7 @@ import type { ChatIntent } from "@/lib/orchestration/intent";
 import { runResearch, researchProviderAvailable } from "@/lib/ai/research";
 import { tool } from "ai";
 import { z } from "zod";
+import { AppError } from "@/lib/errors";
 
 export interface ConnectorCapabilityLine {
   provider: string;
@@ -119,6 +120,7 @@ export async function buildChatTools(params: {
   workspaceId: string;
   userId: string;
   conversationId: string | null;
+  assistantMessageId?: string | null;
   supabase: SupabaseClient;
   intent: ChatIntent;
   message: string;
@@ -129,16 +131,47 @@ export async function buildChatTools(params: {
   const tools: Record<string, CoreTool> = {};
   let composioToolNames: string[] = [];
 
+  if (params.intent === "action" && toolkits.length > 0 && !configured.connectors) {
+    throw new AppError({
+      area: "tools",
+      category: "config_missing",
+      userMessage:
+        "Connected-app actions are not configured on this deployment. Ask an administrator to configure Composio. Nothing was sent or changed.",
+    });
+  }
+
   if (toolkits.length > 0 && configured.connectors) {
     const built = await buildComposioAiSdkTools({
       supabaseUserId: params.userId,
       workspaceId: params.workspaceId,
       conversationId: params.conversationId,
+      assistantMessageId: params.assistantMessageId ?? null,
       supabase: params.supabase,
       toolkits,
     });
     Object.assign(tools, built.tools);
     composioToolNames = built.toolNames;
+    if (params.intent === "action" && built.toolNames.length === 0) {
+      const label = toolkits.map((toolkit) => providerLabel(toolkit)).join(", ");
+      throw new AppError({
+        area: "tools",
+        category: "provider_error",
+        userMessage: `${label || "The requested app"} is not currently executable. Reconnect it on the Connections page and verify its permissions. Nothing was sent or changed.`,
+        internal: { layer: built.diag.layer, requested: toolkits, discovered_count: 0 },
+      });
+    }
+    const needsGmailSend =
+      toolkits.includes("gmail") && /\b(send|email|mail|forward|reply)\b/i.test(params.message);
+    const hasGmailSend = built.toolNames.some((name) => /^GMAIL_.*(SEND|FORWARD|REPLY)/i.test(name));
+    if (needsGmailSend && !hasGmailSend) {
+      throw new AppError({
+        area: "tools",
+        category: "provider_error",
+        userMessage:
+          "Gmail is connected, but no send-capable tool is available. Reconnect Gmail with send permission and try again. Nothing was sent.",
+        internal: { layer: "capability_discovery", discovered: built.toolNames },
+      });
+    }
   }
 
   // Keep Aria research as a non-Composio tool when research mode/intent needs it.

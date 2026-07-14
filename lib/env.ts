@@ -11,6 +11,9 @@ function str(v: string | undefined): string {
 export const env = {
   appUrl: str(process.env.NEXT_PUBLIC_APP_URL) || "http://localhost:3000",
   appEnv: str(process.env.APP_ENV) || "development",
+  isProduction:
+    process.env.NODE_ENV === "production" ||
+    ["production", "prod"].includes(str(process.env.APP_ENV).toLowerCase()),
 
   supabaseUrl: str(process.env.NEXT_PUBLIC_SUPABASE_URL),
   supabaseAnonKey: str(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
@@ -22,6 +25,7 @@ export const env = {
   
   // Custom Personal API
   customApiUrl: str(process.env.CUSTOM_API_URL) || "http://localhost:11434/v1", // Ollama default
+  customApiConfigured: Boolean(str(process.env.CUSTOM_API_URL)),
 
   perplexityKey: str(process.env.PERPLEXITY_API_KEY),
   tavilyKey: str(process.env.TAVILY_API_KEY),
@@ -45,6 +49,10 @@ export const env = {
   composioOutlookAuthConfigId: str(process.env.COMPOSIO_OUTLOOK_AUTH_CONFIG_ID),
 
   defaultChatModel: str(process.env.DEFAULT_CHAT_MODEL) || "openai:gpt-5.6",
+  openaiChatModel: str(process.env.OPENAI_CHAT_MODEL) || "openai:gpt-5.6",
+  googleChatModel: str(process.env.GOOGLE_CHAT_MODEL) || "google:gemini-3.5-flash",
+  anthropicChatModel:
+    str(process.env.ANTHROPIC_CHAT_MODEL) || "anthropic:claude-opus-4-8",
   defaultEmbeddingModel:
     str(process.env.DEFAULT_EMBEDDING_MODEL) || "openai:text-embedding-3-small",
   defaultResearchModel: str(process.env.DEFAULT_RESEARCH_MODEL) || "perplexity:sonar",
@@ -101,6 +109,15 @@ export const env = {
    */
   authDisabled: ["1", "true", "yes"].includes(str(process.env.AUTH_DISABLED).toLowerCase()),
 };
+
+/** Auth bypass is a local-development convenience and is impossible in production. */
+export function authBypassEnabled() {
+  return isAuthBypassAllowed(env.authDisabled, env.isProduction);
+}
+
+export function isAuthBypassAllowed(requested: boolean, isProduction: boolean) {
+  return requested && !isProduction;
+}
 
 export const configured = {
   get supabase() {

@@ -27,6 +27,9 @@ import {
 } from "@/lib/connectors/composio-user";
 import type { ChatIntent } from "@/lib/orchestration/intent";
 import { sanitizeForLog } from "@/lib/security/sanitize";
+import { classifyToolPolicy } from "@/lib/connectors/tool-policy";
+import { extractVerifiedProviderReference, providerResultFailureReason, verifyProviderExecutionResult } from "@/lib/connectors/provider-result";
+import { logError } from "@/lib/logging/error-log";
 
 export type AriaToolkit =
   | "gmail"
@@ -57,9 +60,6 @@ const TOOLKIT_TO_PROVIDER: Record<string, string> = Object.fromEntries(
 );
 
 /** Tools that must never auto-execute — approval required. */
-const DANGEROUS_SLUG_RE =
-  /^(GMAIL_SEND_|GMAIL_DELETE_|GMAIL_TRASH_|GMAIL_BATCH_DELETE|GOOGLECALENDAR_CREATE_|GOOGLECALENDAR_DELETE_|GOOGLECALENDAR_UPDATE_|SLACK_SEND_|SLACK_DELETE_|NOTION_CREATE_|NOTION_UPDATE_|NOTION_DELETE_|GITHUB_CREATE_|GITHUB_DELETE_|GITHUB_MERGE_|LINEAR_CREATE_|JIRA_CREATE_|TRELLO_CREATE_|TRELLO_DELETE_)/i;
-
 let client: Composio | null = null;
 
 export function getComposioClient(): Composio {
@@ -77,7 +77,7 @@ export function getComposioClient(): Composio {
 }
 
 export function isDangerousComposioTool(slug: string): boolean {
-  return DANGEROUS_SLUG_RE.test(slug);
+  return classifyToolPolicy(slug).requiresApproval;
 }
 
 /**
@@ -159,6 +159,7 @@ export async function buildComposioAiSdkTools(params: {
   supabaseUserId: string;
   workspaceId: string;
   conversationId: string | null;
+  assistantMessageId?: string | null;
   supabase: SupabaseClient;
   toolkits: AriaToolkit[];
 }): Promise<{
@@ -282,8 +283,10 @@ export async function buildComposioAiSdkTools(params: {
     }) as Record<string, unknown>;
 
     const connectedAccountId = resolveAccountForSlug(slug, connectedAccounts);
+    const policy = classifyToolPolicy(slug);
+    if (policy.risk === "prohibited") continue;
 
-    if (isDangerousComposioTool(slug)) {
+    if (policy.requiresApproval) {
       tools[slug] = tool({
         description: `${description}\n\nIMPORTANT: This action requires user approval. Calling it creates an approval request — it does NOT execute immediately.`,
         parameters: jsonSchema(parameters as any),
@@ -293,13 +296,14 @@ export async function buildComposioAiSdkTools(params: {
             workspaceId: params.workspaceId,
             userId: params.supabaseUserId,
             conversationId: params.conversationId,
+            messageId: params.assistantMessageId ?? null,
             toolName: slug,
             args: {
               ...(args as Record<string, unknown>),
               __composio_user_id: composioUserId,
               __connected_account_id: connectedAccountId,
             },
-            riskLevel: 3,
+            riskLevel: policy.risk === "destructive" ? 3 : 2,
           });
           logComposioDiag({
             ...diag,
@@ -311,7 +315,7 @@ export async function buildComposioAiSdkTools(params: {
             status: "pending_approval",
             approvalId,
             summary,
-            message: `Approval created for ${slug}. Ask the user to open Approvals and approve. Nothing has been sent yet.`,
+            message: `Approval created for ${slug}. Ask the user to review the inline approval card. Nothing has been sent yet.`,
           };
         },
       });
@@ -322,12 +326,59 @@ export async function buildComposioAiSdkTools(params: {
       description,
       parameters: jsonSchema(parameters as any),
       execute: async (args) => {
+        const startedAt = new Date().toISOString();
         try {
           const result = await composio.tools.execute(slug, {
             userId: composioUserId,
             arguments: args as Record<string, unknown>,
             ...(connectedAccountId ? { connectedAccountId } : {}),
           });
+          const reportedFailure = providerResultFailureReason(result);
+          if (reportedFailure) {
+            throw new AppError({
+              area: "tools",
+              category: "provider_error",
+              userMessage: "The connected app reported that the operation failed. Nothing was marked as completed.",
+              internal: reportedFailure,
+            });
+          }
+          if (policy.risk === "reversible_write") {
+            const verifiedWrite = verifyProviderExecutionResult(result);
+            if (!verifiedWrite.ok) {
+              throw new AppError({
+                area: "tools",
+                category: "provider_error",
+                userMessage: "The connected provider did not confirm the draft or reversible write. Nothing was marked as completed.",
+                internal: verifiedWrite.reason,
+              });
+            }
+          }
+          const completedAt = new Date().toISOString();
+          const { error: receiptError } = await params.supabase.from("action_receipts").insert({
+            approval_id: null,
+            workspace_id: params.workspaceId,
+            user_id: params.supabaseUserId,
+            conversation_id: params.conversationId,
+            message_id: params.assistantMessageId ?? null,
+            provider: providerForToolSlug(slug),
+            action_type: slug,
+            destination: null,
+            subject: null,
+            provider_reference: extractVerifiedProviderReference(result),
+            status: "succeeded",
+            error_message: null,
+            started_at: startedAt,
+            completed_at: completedAt,
+          });
+          if (receiptError) {
+            await logError({
+              area: "tools",
+              error: receiptError,
+              workspaceId: params.workspaceId,
+              userId: params.supabaseUserId,
+              provider: providerForToolSlug(slug),
+            });
+          }
           logComposioDiag({
             ...diag,
             toolsReturned: Object.keys(tools),
@@ -336,19 +387,38 @@ export async function buildComposioAiSdkTools(params: {
           });
           return result;
         } catch (err) {
+          const completedAt = new Date().toISOString();
+          await params.supabase.from("action_receipts").insert({
+            approval_id: null,
+            workspace_id: params.workspaceId,
+            user_id: params.supabaseUserId,
+            conversation_id: params.conversationId,
+            message_id: params.assistantMessageId ?? null,
+            provider: providerForToolSlug(slug),
+            action_type: slug,
+            destination: null,
+            subject: null,
+            provider_reference: null,
+            status: "failed",
+            error_message: "The connected provider reported an execution failure.",
+            started_at: startedAt,
+            completed_at: completedAt,
+          });
           logComposioDiag({
             ...diag,
             toolsReturned: Object.keys(tools),
             layer: "composio_execution",
             note: `fail ${slug}: ${err instanceof Error ? err.message.slice(0, 120) : "error"}`,
           });
-          throw new AppError({
-            area: "tools",
-            category: "provider_error",
-            userMessage:
-              "Composio could not complete that action. Reconnect the app on Connections if this keeps happening.",
-            internal: err instanceof Error ? err.message : err,
-          });
+          throw err instanceof AppError
+            ? err
+            : new AppError({
+                area: "tools",
+                category: "provider_error",
+                userMessage:
+                  "Composio could not complete that action. Reconnect the app on Connections if this keeps happening.",
+                internal: err instanceof Error ? err.message : err,
+              });
         }
       },
     });
@@ -365,6 +435,14 @@ export async function buildComposioAiSdkTools(params: {
     capabilityLines,
     diag,
   };
+}
+
+function providerForToolSlug(slug: string): string {
+  const upper = slug.toUpperCase();
+  if (upper.startsWith("GMAIL")) return "gmail";
+  if (upper.includes("CALENDAR")) return "google_calendar";
+  if (upper.includes("DRIVE")) return "google_drive";
+  return slug.split("_")[0].toLowerCase();
 }
 
 function resolveAccountForSlug(
@@ -417,6 +495,16 @@ export async function executeComposioToolFromApproval(params: {
       arguments: arguments_,
       ...(connectedAccountId ? { connectedAccountId } : {}),
     });
+    const verified = verifyProviderExecutionResult(result);
+    if (!verified.ok) {
+      throw new AppError({
+        area: "tools",
+        category: "provider_error",
+        userMessage:
+          "The connected provider did not confirm the action. Nothing was marked as sent or completed.",
+        internal: verified.reason,
+      });
+    }
     logComposioDiag({
       ariaUserId: params.supabaseUserId,
       workspaceId: "",

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Brain, Plus, Trash2, Power } from "lucide-react";
+import { Brain, Plus, Trash2, Power, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, Input, Textarea, Label, Badge, Spinner } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/select";
@@ -18,6 +18,12 @@ export interface MemoryRow {
   approval_status: string;
   project_id: string | null;
   updated_at: string;
+  importance: number;
+  provenance: Record<string, unknown> | null;
+  active: boolean;
+  expires_at: string | null;
+  superseded_by: string | null;
+  last_used_at: string | null;
 }
 
 const TYPES = [
@@ -43,8 +49,12 @@ export function MemoryClient({
   const [projectId, setProjectId] = React.useState<string>("");
   const [filter, setFilter] = React.useState<"all" | "global" | "project" | "suggested">("all");
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState("");
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState("");
 
   const filtered = initial.filter((m) => {
+    if (query && !m.content.toLowerCase().includes(query.toLowerCase())) return false;
     if (filter === "global") return m.project_id === null;
     if (filter === "project") return m.project_id !== null;
     if (filter === "suggested") return m.approval_status === "suggested";
@@ -120,6 +130,27 @@ export function MemoryClient({
     }
   }
 
+  async function saveEdit(m: MemoryRow) {
+    if (!draft.trim()) return;
+    setBusy(m.id);
+    try {
+      const res = await fetch("/api/memory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id, content: draft.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not save the edit.");
+      setEditingId(null);
+      success("Memory updated");
+      router.refresh();
+    } catch (cause) {
+      error("Could not update", cause instanceof Error ? cause.message : undefined);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const projName = (id: string | null) => projects.find((p) => p.id === id)?.name;
 
   return (
@@ -142,6 +173,11 @@ export function MemoryClient({
           <Plus className="h-4 w-4" /> Add memory
         </Button>
       </div>
+
+      <label className="relative block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search approved, suggested, or disabled memories" className="pl-9" />
+      </label>
 
       {adding && (
         <Card className="p-5">
@@ -214,9 +250,33 @@ export function MemoryClient({
                     {m.approval_status === "suggested" && <Badge tone="warning">Suggested</Badge>}
                     {m.approval_status === "disabled" && <Badge tone="muted">Disabled</Badge>}
                   </div>
-                  <p className="text-sm">{m.content}</p>
+                  {editingId === m.id ? (
+                    <div className="space-y-2">
+                      <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => void saveEdit(m)} disabled={busy === m.id || !draft.trim()}>Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm">{m.content}</p>
+                  )}
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Importance {m.importance ?? 3}/5 Â· source {m.source}
+                    {m.last_used_at ? ` Â· last used ${new Date(m.last_used_at).toLocaleDateString()}` : ""}
+                    {m.expires_at ? ` Â· expires ${new Date(m.expires_at).toLocaleDateString()}` : ""}
+                    {m.superseded_by ? " Â· superseded" : ""}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setEditingId(m.id); setDraft(m.content); }}
+                    disabled={busy === m.id || Boolean(m.superseded_by)}
+                    className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+                    title="Edit memory"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => toggle(m)}
                     disabled={busy === m.id}

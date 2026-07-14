@@ -7,6 +7,8 @@ import { researchProviderAvailable } from "@/lib/ai/research";
 import { TOOL_REGISTRY } from "@/lib/ai/tools";
 import { CheckCircle2, XCircle, ShieldAlert, Lock } from "lucide-react";
 import { PrivacyControls } from "@/components/settings/privacy-controls";
+import { ProfileForm } from "@/components/settings/profile-form";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = { title: "Settings · Aria" };
 
@@ -33,9 +35,27 @@ function StatusRow({ label, ok, detail }: { label: string; ok: boolean; detail?:
 export default async function SettingsPage() {
   const ctx = await requireSession();
   const providers = availableProviders();
+  const { data: profile } = await createServerSupabase()
+    .from("profiles")
+    .select("preferred_name, company, role_title, signature, timezone, language, history_retrieval_enabled")
+    .eq("id", ctx.userId)
+    .maybeSingle();
 
   return (
     <PageShell title="Settings" description="Account, providers, and integrations.">
+      <Card className="mb-6 p-5">
+        <h2 className="mb-1 font-semibold">Core profile</h2>
+        <p className="mb-4 text-xs text-muted-foreground">Approved identity details Aria can use in drafts and replies.</p>
+        <ProfileForm initial={{
+          preferredName: profile?.preferred_name ?? "",
+          company: profile?.company ?? "",
+          roleTitle: profile?.role_title ?? "",
+          signature: profile?.signature ?? "",
+          timezone: profile?.timezone ?? "UTC",
+          language: profile?.language ?? "en",
+          historyRetrievalEnabled: profile?.history_retrieval_enabled !== false,
+        }} />
+      </Card>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="mb-3 font-semibold">Account</h2>

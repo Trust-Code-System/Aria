@@ -11,6 +11,10 @@ import { getTool } from "@/lib/ai/tools";
 import { AppError } from "@/lib/errors";
 import { logAudit } from "@/lib/logging/error-log";
 import { sanitizeForLog } from "@/lib/security/sanitize";
+import {
+  extractVerifiedProviderReference,
+  verifyProviderExecutionResult,
+} from "@/lib/connectors/provider-result";
 
 export interface ChatToolLockV1 {
   version: 1;
@@ -128,6 +132,74 @@ export function verifyChatToolLock(
   }
 }
 
+const EMAIL_ADDRESS = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+
+/** Validate model/provider-derived recipients before they enter a locked action. */
+export function validateMailFields(fields: ExtractedMailFields): { ok: true } | { ok: false; reason: string } {
+  const validateList = (value: string, required: boolean, label: string) => {
+    const addresses = value
+      .split(/[,;]/)
+      .map((item) => item.trim().match(/<([^<>]+)>$/)?.[1] ?? item.trim())
+      .filter(Boolean);
+    if (required && addresses.length === 0) return `${label} is required.`;
+    if (addresses.some((address) => !EMAIL_ADDRESS.test(address) || /[\r\n]/.test(address))) {
+      return `${label} contains an invalid email address.`;
+    }
+    return null;
+  };
+  const reason =
+    validateList(fields.to, true, "Recipient") ??
+    validateList(fields.cc, false, "CC") ??
+    validateList(fields.bcc, false, "BCC");
+  return reason ? { ok: false, reason } : { ok: true };
+}
+
+export interface MailApprovalEdits {
+  to?: string;
+  subject?: string;
+  body?: string;
+  cc?: string;
+  bcc?: string;
+}
+
+function replaceKnownArg(
+  args: Record<string, unknown>,
+  keys: string[],
+  fallback: string,
+  value: string | undefined,
+) {
+  if (value === undefined) return;
+  const existing = keys.find((key) => Object.prototype.hasOwnProperty.call(args, key));
+  args[existing ?? fallback] = value.trim();
+}
+
+/** Re-lock an edited pending email approval without changing its provider tool. */
+export function editLockedMailApproval(
+  canonical: string | null | undefined,
+  hash: string | null | undefined,
+  edits: MailApprovalEdits,
+):
+  | { ok: true; payload: ChatToolLockV1; canonical: string; hash: string; fields: ExtractedMailFields }
+  | { ok: false; reason: string } {
+  const verified = verifyChatToolLock(canonical, hash);
+  if (!verified.ok) return verified;
+  if (!isSendLikeTool(verified.payload.tool_name)) {
+    return { ok: false, reason: "Only email approvals can be edited inline." };
+  }
+  const args = { ...verified.payload.args };
+  replaceKnownArg(args, ["to", "recipient_email", "recipient", "recipientEmail", "email", "to_email"], "recipient_email", edits.to);
+  replaceKnownArg(args, ["subject", "email_subject", "Subject"], "subject", edits.subject);
+  replaceKnownArg(args, ["body", "message", "email_body", "html_body", "text", "Body"], "body", edits.body);
+  replaceKnownArg(args, ["cc", "cc_email"], "cc", edits.cc);
+  replaceKnownArg(args, ["bcc", "bcc_email"], "bcc", edits.bcc);
+  const payload: ChatToolLockV1 = { ...verified.payload, args };
+  const fields = extractMailFields(args);
+  const validity = validateMailFields(fields);
+  if (!validity.ok) return validity;
+  const relocked = lockChatToolPayload(payload);
+  return { ok: true, payload, ...relocked, fields };
+}
+
 /** Sanitize provider result for storage / UI — never tokens or full private bodies. */
 export function buildActionReceipt(params: {
   toolName: string;
@@ -137,7 +209,7 @@ export function buildActionReceipt(params: {
   completedAt: string;
 }): Record<string, unknown> {
   const mail = extractMailFields(params.args);
-  const ref = extractProviderReference(params.providerResult);
+  const ref = extractVerifiedProviderReference(params.providerResult);
   return {
     provider: params.toolName.toUpperCase().startsWith("GMAIL") ? "gmail" : "composio",
     tool_name: params.toolName,
@@ -151,35 +223,23 @@ export function buildActionReceipt(params: {
   };
 }
 
-function extractProviderReference(result: unknown): string | null {
-  if (!result || typeof result !== "object") return null;
-  const r = result as Record<string, unknown>;
-  const candidates = [
-    r.id,
-    r.messageId,
-    r.message_id,
-    r.threadId,
-    r.thread_id,
-    (r.data as Record<string, unknown> | undefined)?.id,
-    (r.response_data as Record<string, unknown> | undefined)?.id,
-  ];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c.trim().slice(0, 120);
-    if (typeof c === "number") return String(c);
-  }
-  return null;
-}
-
 export async function createChatToolApproval(params: {
   supabase: SupabaseClient;
   workspaceId: string;
   userId: string;
   conversationId: string | null;
+  messageId?: string | null;
   toolName: string;
   args: Record<string, unknown>;
   riskLevel?: number;
 }): Promise<{ approvalId: string; summary: string }> {
   const mail = extractMailFields(params.args);
+  if (isSendLikeTool(params.toolName)) {
+    const validity = validateMailFields(mail);
+    if (!validity.ok) {
+      throw new AppError({ area: "approvals", category: "validation", userMessage: validity.reason });
+    }
+  }
   const summary = summarizeChatToolApproval(params.toolName, params.args);
 
   const lock = lockChatToolPayload({
@@ -203,6 +263,9 @@ export async function createChatToolApproval(params: {
       status: "pending",
       summary: summary.slice(0, 500),
       tool_name: params.toolName,
+      conversation_id: params.conversationId,
+      message_id: params.messageId ?? null,
+      expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
       safe_metadata: {
         source: "chat",
         conversation_id: params.conversationId,
@@ -261,12 +324,26 @@ export async function claimChatToolExecution(params: {
 > {
   const { data: approval } = await params.supabase
     .from("approvals")
-    .select("id, status, tool_name, payload_canonical, payload_hash, safe_metadata")
+    .select("id, status, tool_name, payload_canonical, payload_hash, safe_metadata, expires_at")
     .eq("id", params.approvalId)
     .eq("workspace_id", params.workspaceId)
     .maybeSingle();
 
   if (!approval) return { ok: false, reason: "Approval not found.", status: "missing" };
+
+  if (approval.expires_at && Date.parse(approval.expires_at) <= Date.now()) {
+    await params.supabase
+      .from("approvals")
+      .update({ status: "expired" })
+      .eq("id", params.approvalId)
+      .eq("workspace_id", params.workspaceId)
+      .eq("status", "approved");
+    return {
+      ok: false,
+      reason: "This approval expired. Create a fresh request from chat.",
+      status: "expired",
+    };
+  }
 
   if (approval.status === "succeeded") {
     return { ok: false, reason: "This approval already completed successfully. Create a new request to send again.", status: "succeeded" };
@@ -298,12 +375,17 @@ export async function claimChatToolExecution(params: {
   if (!verified.ok) {
     return { ok: false, reason: verified.reason, status: approval.status };
   }
+  if (isSendLikeTool(verified.payload.tool_name)) {
+    const validity = validateMailFields(extractMailFields(verified.payload.args));
+    if (!validity.ok) return { ok: false, reason: validity.reason, status: "invalid" };
+  }
 
   const startedAt = new Date().toISOString();
   const { data: claimed, error } = await params.supabase
     .from("approvals")
     .update({
       status: "executing",
+      execution_started_at: startedAt,
       safe_metadata: {
         ...priorMeta,
         execution_started_at: startedAt,
@@ -365,6 +447,12 @@ export async function executeApprovedChatTool(params: {
 
   const tool = getTool(claimed.toolName);
   const isComposioSlug = /^[A-Z0-9_]+$/.test(claimed.toolName);
+  const { data: approvalLink } = await params.supabase
+    .from("approvals")
+    .select("conversation_id, message_id, action_type")
+    .eq("id", params.approvalId)
+    .eq("workspace_id", params.workspaceId)
+    .maybeSingle();
 
   let result: unknown;
   try {
@@ -388,6 +476,7 @@ export async function executeApprovedChatTool(params: {
       .from("approvals")
       .update({
         status: "failed",
+        completed_at: completedAt,
         safe_metadata: {
           ...claimed.priorMeta,
           executed_at: completedAt,
@@ -399,6 +488,27 @@ export async function executeApprovedChatTool(params: {
       })
       .eq("id", params.approvalId)
       .eq("workspace_id", params.workspaceId);
+
+    const mail = extractMailFields(claimed.payload.args as Record<string, unknown>);
+    await params.supabase.from("action_receipts").upsert(
+      {
+        approval_id: params.approvalId,
+        workspace_id: params.workspaceId,
+        user_id: params.userId,
+        conversation_id: approvalLink?.conversation_id ?? null,
+        message_id: approvalLink?.message_id ?? null,
+        provider: claimed.toolName.toUpperCase().startsWith("GMAIL") ? "gmail" : "composio",
+        action_type: approvalLink?.action_type ?? claimed.toolName,
+        destination: mail.to || null,
+        subject: mail.subject || null,
+        provider_reference: null,
+        status: "failed",
+        error_message: "Provider execution failed. Nothing was confirmed as sent or changed.",
+        started_at: startedAt,
+        completed_at: completedAt,
+      },
+      { onConflict: "approval_id" },
+    );
 
     await logAudit({
       action: "tool.execute.failed",
@@ -421,6 +531,51 @@ export async function executeApprovedChatTool(params: {
   }
 
   const completedAt = new Date().toISOString();
+  const verification = verifyProviderExecutionResult(result);
+  if (!verification.ok) {
+    await params.supabase
+      .from("approvals")
+      .update({
+        status: "failed",
+        completed_at: completedAt,
+        safe_metadata: {
+          ...claimed.priorMeta,
+          executed_at: completedAt,
+          execution_ok: false,
+          error_redacted: verification.reason,
+        },
+      })
+      .eq("id", params.approvalId)
+      .eq("workspace_id", params.workspaceId)
+      .eq("status", "executing");
+    const mail = extractMailFields(claimed.payload.args as Record<string, unknown>);
+    await params.supabase.from("action_receipts").upsert(
+      {
+        approval_id: params.approvalId,
+        workspace_id: params.workspaceId,
+        user_id: params.userId,
+        conversation_id: approvalLink?.conversation_id ?? null,
+        message_id: approvalLink?.message_id ?? null,
+        provider: claimed.toolName.toUpperCase().startsWith("GMAIL") ? "gmail" : "composio",
+        action_type: approvalLink?.action_type ?? claimed.toolName,
+        destination: mail.to || null,
+        subject: mail.subject || null,
+        provider_reference: null,
+        status: "failed",
+        error_message: "The provider response did not contain a verifiable success confirmation.",
+        started_at: startedAt,
+        completed_at: completedAt,
+      },
+      { onConflict: "approval_id" },
+    );
+    throw new AppError({
+      area: "tools",
+      category: "provider_error",
+      userMessage:
+        "The connected provider did not confirm the action. Nothing was marked as sent or completed.",
+      internal: verification.reason,
+    });
+  }
   const receipt = buildActionReceipt({
     toolName: claimed.toolName,
     args: claimed.payload.args as Record<string, unknown>,
@@ -433,6 +588,7 @@ export async function executeApprovedChatTool(params: {
     .from("approvals")
     .update({
       status: "succeeded",
+      completed_at: completedAt,
       safe_metadata: {
         ...claimed.priorMeta,
         executed_at: completedAt,
@@ -442,6 +598,27 @@ export async function executeApprovedChatTool(params: {
     })
     .eq("id", params.approvalId)
     .eq("workspace_id", params.workspaceId);
+
+  await params.supabase.from("action_receipts").upsert(
+    {
+      approval_id: params.approvalId,
+      workspace_id: params.workspaceId,
+      user_id: params.userId,
+      conversation_id: approvalLink?.conversation_id ?? null,
+      message_id: approvalLink?.message_id ?? null,
+      provider: String(receipt.provider ?? "composio"),
+      action_type: approvalLink?.action_type ?? claimed.toolName,
+      destination: typeof receipt.to === "string" ? receipt.to : null,
+      subject: typeof receipt.subject === "string" ? receipt.subject : null,
+      provider_reference:
+        typeof receipt.provider_reference === "string" ? receipt.provider_reference : null,
+      status: "succeeded",
+      error_message: null,
+      started_at: startedAt,
+      completed_at: completedAt,
+    },
+    { onConflict: "approval_id" },
+  );
 
   await logAudit({
     action: "tool.execute",
