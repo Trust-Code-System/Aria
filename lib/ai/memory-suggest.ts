@@ -10,6 +10,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
 import { looksLikeSecret } from "@/lib/ai/memory-safety";
+import { logError } from "@/lib/logging/error-log";
+import { logGeneration } from "@/lib/logging/telemetry";
 
 export type MemoryType =
   | "preference"
@@ -22,6 +24,16 @@ export interface MemorySuggestion {
   type: MemoryType;
   content: string;
   confidence: number;
+}
+
+export interface CreatedMemorySuggestion extends MemorySuggestion {
+  id: string;
+}
+
+export interface MemorySuggestionOutcome {
+  status: "skipped" | "zero" | "created" | "failed";
+  suggestions: CreatedMemorySuggestion[];
+  traceId?: string;
 }
 
 const TYPES: MemoryType[] = [
@@ -43,19 +55,20 @@ export async function suggestMemoriesFromTurn(opts: {
   projectId?: string | null;
   userMessage: string;
   assistantMessage: string;
-}): Promise<number> {
+  sourceMessageId?: string | null;
+}): Promise<MemorySuggestionOutcome> {
   const modelId = resolveUsableChatModelId();
-  if (!modelId) return 0;
+  if (!modelId) return { status: "skipped", suggestions: [] };
 
   const userMsg = opts.userMessage.slice(0, 2000);
   const asstMsg = opts.assistantMessage.slice(0, 3000);
-  if (userMsg.length < 8) return 0;
+  if (userMsg.length < 5) return { status: "skipped", suggestions: [] };
 
   let suggestions: MemorySuggestion[] = [];
+  const started = Date.now();
   try {
     const { text } = await generateText({
       model: getChatModel(modelId, "memory"),
-      temperature: 0.1,
       system:
         "You extract durable user memories from a chat turn. Return ONLY a JSON array " +
         '(max 3 items) of {"type":"...","content":"...","confidence":0.0-1.0}. ' +
@@ -67,11 +80,26 @@ export async function suggestMemoriesFromTurn(opts: {
       prompt: `User:\n${userMsg}\n\nAssistant:\n${asstMsg}`,
     });
     suggestions = parseSuggestions(text);
-  } catch {
-    return 0;
+    logGeneration({
+      name: "memory_suggest",
+      model: modelId,
+      latencyMs: Date.now() - started,
+      workspaceId: opts.workspaceId,
+      metadata: { outcome: suggestions.length ? "candidates" : "zero" },
+    });
+  } catch (error) {
+    const traceId = await logError({
+      area: "memory",
+      error,
+      workspaceId: opts.workspaceId,
+      userId: opts.userId,
+      provider: modelId.split(":")[0],
+      latencyMs: Date.now() - started,
+    });
+    return { status: "failed", suggestions: [], traceId };
   }
 
-  if (suggestions.length === 0) return 0;
+  if (suggestions.length === 0) return { status: "zero", suggestions: [] };
 
   const { data: existing } = await opts.supabase
     .from("memories")
@@ -84,7 +112,7 @@ export async function suggestMemoriesFromTurn(opts: {
     (existing ?? []).map((m) => normalize(String(m.content))),
   );
 
-  let inserted = 0;
+  const created: CreatedMemorySuggestion[] = [];
   for (const s of suggestions.slice(0, 3)) {
     if (looksLikeSecret(s.content)) continue;
     if (s.content.length < 8 || s.content.length > 500) continue;
@@ -94,7 +122,7 @@ export async function suggestMemoriesFromTurn(opts: {
       continue;
     }
 
-    const { error } = await opts.supabase.from("memories").insert({
+    const { data, error } = await opts.supabase.from("memories").insert({
       workspace_id: opts.workspaceId,
       user_id: opts.userId,
       project_id: opts.projectId ?? null,
@@ -104,13 +132,33 @@ export async function suggestMemoriesFromTurn(opts: {
       confidence: Math.min(1, Math.max(0.1, s.confidence)),
       sensitivity: "low",
       approval_status: "suggested",
-    });
-    if (!error) {
-      inserted += 1;
+      category: s.type,
+      importance: 3,
+      provenance: {
+        kind: "chat_turn",
+        source_message_id: opts.sourceMessageId ?? null,
+        user_stated: true,
+      },
+      normalized_content: normalize(s.content),
+      source_message_id: opts.sourceMessageId ?? null,
+      active: false,
+    }).select("id").single();
+    if (!error && data?.id) {
+      created.push({ ...s, id: data.id });
       existingNorm.add(normalize(s.content));
+    } else if (error) {
+      await logError({
+        area: "memory",
+        error,
+        workspaceId: opts.workspaceId,
+        userId: opts.userId,
+      });
     }
   }
-  return inserted;
+  return {
+    status: created.length ? "created" : "zero",
+    suggestions: created,
+  };
 }
 
 function normalize(s: string): string {

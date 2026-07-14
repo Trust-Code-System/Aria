@@ -1,25 +1,32 @@
 import { streamText, type CoreMessage } from "ai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z, ZodError } from "zod";
+
 import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/security/rate-limit";
 import {
+  fallbackChatModelIds,
   getChatModel,
+  isModelCompatible,
   resolveUsableChatModelId,
   supportsTemperature,
-  fallbackChatModelIds,
 } from "@/lib/ai/providers";
 import { resolveRoutedChatModelId } from "@/lib/ai/routing";
 import { buildSystemPrompt, renderRetrievedContext, type ChatMode } from "@/lib/ai/prompts";
 import { retrieveChunks, hasUsableContext } from "@/lib/ai/rag";
 import { getContextMemories } from "@/lib/ai/memory";
 import { suggestMemoriesFromTurn } from "@/lib/ai/memory-suggest";
+import { executeExplicitMemoryCommand } from "@/lib/ai/memory-actions";
+import { recognizeMemoryCommand } from "@/lib/ai/memory-commands";
+import { getCoreProfile, renderCoreProfile } from "@/lib/ai/core-profile";
+import { searchChatHistory } from "@/lib/ai/history-search";
 import { runResearch } from "@/lib/ai/research";
 import { apiError } from "@/lib/api";
 import { AppError, configMissing } from "@/lib/errors";
 import { logError } from "@/lib/logging/error-log";
 import { logGeneration } from "@/lib/logging/telemetry";
-import { truncate } from "@/lib/utils";
+import { newTraceId, truncate } from "@/lib/utils";
 import { env } from "@/lib/env";
 import type { Citation } from "@/lib/ai/types";
 import {
@@ -28,18 +35,25 @@ import {
   intentNeedsMemorySuggest,
   intentNeedsTools,
 } from "@/lib/orchestration/intent";
+import { buildChatTools, formatCapabilityPromptSection } from "@/lib/connectors/registry";
+import { buildModelHistory, classifyTerminalError } from "@/lib/chat/turn-state";
 import {
-  buildChatTools,
-  formatCapabilityPromptSection,
-} from "@/lib/connectors/registry";
+  encodeChatStreamEvent,
+  type ChatStreamEvent,
+} from "@/lib/chat/stream-protocol";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const MAX_TOOL_CALLS = 8;
+const MAX_AGENT_STEPS = 5;
+const TURN_TIMEOUT_MS = 55_000;
+const MAX_HISTORY_CHARS = 48_000;
+
 const attachmentSchema = z.object({
   kind: z.enum(["image", "document"]),
   name: z.string().max(300),
-  text: z.string().max(24000).optional(),
+  text: z.string().max(24_000).optional(),
   dataUrl: z
     .string()
     .max(15_000_000)
@@ -51,19 +65,35 @@ const bodySchema = z.object({
   conversationId: z
     .union([z.string().uuid(), z.literal(""), z.null()])
     .optional()
-    .transform((v) => (!v ? undefined : v)),
+    .transform((value) => (!value ? undefined : value)),
   projectId: z
     .union([z.string().uuid(), z.literal(""), z.null()])
     .optional()
-    .transform((v) => (!v ? null : v)),
+    .transform((value) => (!value ? null : value)),
   mode: z.enum(["general", "knowledge", "research", "report", "improve", "code"]),
-  message: z.string().min(1).max(20000),
+  message: z.string().min(1).max(20_000),
+  idempotencyKey: z.string().uuid(),
+  retryAssistantMessageId: z.string().uuid().optional(),
   attachments: z.array(attachmentSchema).max(6).optional(),
 });
+
+type ParsedBody = z.infer<typeof bodySchema>;
+
+interface StartedTurn {
+  userMessageId: string;
+  assistantMessageId: string;
+  message: string;
+  duplicateStatus?: string;
+  duplicateContent?: string;
+}
 
 export async function POST(req: Request) {
   const started = Date.now();
   let ctx: Awaited<ReturnType<typeof requireSessionApi>> | null = null;
+  let supabase: SupabaseClient | null = null;
+  let assistantMessageId: string | null = null;
+  let conversationId: string | null = null;
+
   try {
     ctx = await requireSessionApi();
     rateLimit("chat", ctx.userId);
@@ -76,82 +106,107 @@ export async function POST(req: Request) {
         internal: parsed.error.flatten(),
       });
     }
-    const { conversationId, projectId, mode, message, attachments } = parsed.data;
+    const body = parsed.data;
+    supabase = createServerSupabase();
+    conversationId = await resolveConversation(supabase, ctx, body);
 
-    const supabase = createServerSupabase();
-
-    const intent = classifyChatIntent({
-      mode,
-      message,
-      hasAttachments: Boolean(attachments?.length),
-    });
-
-    let modelId = resolveRoutedChatModelId({
-      mode,
-      message,
-      preferred: resolveUsableChatModelId() ?? undefined,
-      intent,
-      hasImages: Boolean(attachments?.some((a) => a.kind === "image")),
-    });
-    if (!modelId) throw configMissing("chat", "An LLM provider");
-
-    let convId = conversationId;
-    if (!convId) {
-      const { data, error } = await supabase
-        .from("conversations")
-        .insert({
-          workspace_id: ctx.workspaceId,
-          user_id: ctx.userId,
-          project_id: projectId ?? null,
-          title: truncate(message, 60),
-          mode,
-        })
-        .select("id")
-        .single();
-      if (error || !data) {
-        throw new AppError({
-          area: "chat",
-          category: "internal",
-          userMessage: "Could not start the conversation.",
-          internal: error,
-        });
+    const turn = await startTurn(supabase, ctx, conversationId, body);
+    assistantMessageId = turn.assistantMessageId;
+    if (turn.duplicateStatus) {
+      if (turn.duplicateStatus === "completed") {
+        return completedReplayResponse(
+          conversationId,
+          turn.assistantMessageId,
+          turn.duplicateContent ?? "",
+        );
       }
-      convId = data.id;
-    } else {
-      const { data } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("id", convId)
-        .eq("workspace_id", ctx.workspaceId)
-        .maybeSingle();
-      if (!data) {
-        throw new AppError({
-          area: "chat",
-          category: "not_found",
-          userMessage: "Conversation not found.",
-        });
-      }
-      await supabase.from("conversations").update({ mode }).eq("id", convId);
+      throw new AppError({
+        area: "chat",
+        category: "validation",
+        statusCode: 409,
+        userMessage:
+          turn.duplicateStatus === "failed" || turn.duplicateStatus === "cancelled"
+            ? "This turn already failed. Use Retry so Aria can reuse the original user message safely."
+            : "This turn is already running. Please wait for it to finish.",
+      });
     }
 
-    await supabase.from("messages").insert({
-      conversation_id: convId,
-      workspace_id: ctx.workspaceId,
-      user_id: ctx.userId,
-      role: "user",
-      content: message,
+    const intent = classifyChatIntent({
+      mode: body.mode,
+      message: turn.message,
+      hasAttachments: Boolean(body.attachments?.length),
     });
+    const explicitMemory = recognizeMemoryCommand(
+      turn.message,
+      Boolean(body.attachments?.length),
+    );
 
+    if (explicitMemory) {
+      const attachmentText = body.attachments
+        ?.filter((item) => item.kind === "document" && item.text)
+        .map((item) => `[${item.name}]\n${item.text}`)
+        .join("\n\n");
+      const memoryResult = await executeExplicitMemoryCommand({
+        supabase,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        projectId: body.projectId ?? null,
+        sourceMessageId: turn.userMessageId,
+        command: explicitMemory,
+        userMessage: turn.message,
+        attachmentText,
+      });
+      await completeAssistantMessage({
+        supabase,
+        assistantMessageId,
+        content: memoryResult.text,
+        events: memoryResult.events,
+        citations: [],
+      });
+      for (const event of memoryResult.events) {
+        await persistMessageEvent({
+          supabase,
+          event,
+          messageId: assistantMessageId,
+          conversationId,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+        });
+      }
+      return eventListResponse({
+        conversationId,
+        messageId: assistantMessageId,
+        text: memoryResult.text,
+        events: memoryResult.events,
+      });
+    }
+
+    const hasImages = Boolean(body.attachments?.some((item) => item.kind === "image"));
+    let modelId = resolveRoutedChatModelId({
+      mode: body.mode,
+      message: turn.message,
+      preferred: resolveUsableChatModelId() ?? undefined,
+      intent,
+      hasImages,
+    });
+    if (!modelId) throw configMissing("chat", "A compatible LLM provider/model");
+
+    const coreProfile = await getCoreProfile(supabase, ctx.userId);
     const memories = intentNeedsMemories(intent)
-      ? await getContextMemories(supabase, ctx.workspaceId, projectId ?? null)
+      ? await getContextMemories(
+          supabase,
+          ctx.workspaceId,
+          body.projectId ?? null,
+          turn.message,
+        )
       : [];
+
     let retrievedContext: string | null = null;
     let citations: Citation[] = [];
-
-    if (mode === "knowledge") {
-      const chunks = await retrieveChunks(supabase, message, {
+    if (body.mode === "knowledge") {
+      const chunks = await retrieveChunks(supabase, turn.message, {
         workspaceId: ctx.workspaceId,
-        projectId: projectId ?? null,
+        projectId: body.projectId ?? null,
         matchCount: 8,
       });
       if (hasUsableContext(chunks)) {
@@ -161,54 +216,58 @@ export async function POST(req: Request) {
       } else {
         retrievedContext = "(No relevant passages were found in the user's knowledge base.)";
       }
-    } else if (mode === "research") {
-      const research = await runResearch(message);
+    } else if (body.mode === "research") {
+      const research = await runResearch(turn.message);
       retrievedContext = research.answer
         ? `Web research results to synthesize and cite:\n${research.answer}`
         : "(No web results were returned.)";
       citations = research.citations;
     }
 
-    const historyLimit = intent === "instant" ? 4 : 20;
-    const { data: history } = await supabase
+    const historyLimit = intent === "instant" ? 4 : 28;
+    const { data: historyRows } = await supabase
       .from("messages")
-      .select("role, content")
-      .eq("conversation_id", convId)
+      .select("id, role, content, status, idempotency_key")
+      .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
-      .limit(historyLimit);
-    const priorMessages = (history ?? [])
-      .reverse()
-      .filter((m) => m.role !== "system" && String(m.content ?? "").trim().length > 0)
-      .slice(intent === "instant" ? -4 : -12)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      .limit(80);
+    const modelHistory = trimHistory(
+      buildModelHistory((historyRows ?? []).reverse(), { limit: historyLimit }),
+    );
+
+    const historyContext = await searchChatHistory({
+      supabase,
+      workspaceId: ctx.workspaceId,
+      currentConversationId: conversationId,
+      message: turn.message,
+      enabled: coreProfile.historyRetrievalEnabled,
+    });
 
     let projectName: string | null = null;
     let projectInstructions: string | null = null;
-    if (projectId && intent !== "instant") {
-      const { data: proj } = await supabase
+    if (body.projectId && intent !== "instant") {
+      const { data: project } = await supabase
         .from("projects")
         .select("name, instructions")
-        .eq("id", projectId)
+        .eq("id", body.projectId)
+        .eq("workspace_id", ctx.workspaceId)
         .maybeSingle();
-      projectName = proj?.name ?? null;
-      projectInstructions = proj?.instructions ?? null;
+      projectName = project?.name ?? null;
+      projectInstructions = project?.instructions ?? null;
     }
-
-    const workspaceId = ctx.workspaceId;
-    const userId = ctx.userId;
 
     let connectionCapabilities: string | null = null;
     let chatTools: Awaited<ReturnType<typeof buildChatTools>> | null = null;
-    const loadTools =
-      env.chatToolsEnabled && intentNeedsTools(intent) && mode !== "knowledge";
+    const loadTools = env.chatToolsEnabled && intentNeedsTools(intent) && body.mode !== "knowledge";
     if (loadTools) {
       chatTools = await buildChatTools({
-        workspaceId,
-        userId,
-        conversationId: convId ?? null,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        conversationId,
+        assistantMessageId,
         supabase,
         intent,
-        message,
+        message: turn.message,
       });
       connectionCapabilities = formatCapabilityPromptSection(
         chatTools.capabilityLines,
@@ -217,166 +276,89 @@ export async function POST(req: Request) {
     }
 
     const system = buildSystemPrompt({
-      mode: mode as ChatMode,
+      mode: body.mode as ChatMode,
       projectName,
       projectInstructions,
       memories,
       retrievedContext,
+      historyContext,
+      coreProfile: renderCoreProfile(coreProfile),
       connectionCapabilities,
       compact: intent === "instant",
     });
 
-    const { data: assistantRow } = await supabase
-      .from("messages")
-      .insert({
-        conversation_id: convId,
-        workspace_id: ctx.workspaceId,
-        user_id: ctx.userId,
-        role: "assistant",
-        content: "",
-        citations,
-      })
-      .select("id")
-      .single();
-    const assistantMessageId = assistantRow?.id;
-
-    const modelMessages: CoreMessage[] = priorMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    if (attachments?.length) {
-      const docs = attachments.filter((a) => a.kind === "document" && a.text);
-      const imgs = attachments.filter((a) => a.kind === "image" && a.dataUrl);
-      const lastUser = modelMessages.map((m) => m.role).lastIndexOf("user");
-      if (lastUser >= 0) {
-        let text = message;
-        for (const d of docs) {
-          text += `\n\n[Attached document: ${d.name}]\n${d.text}`;
-        }
-        if (imgs.length) {
-          modelMessages[lastUser] = {
-            role: "user",
-            content: [
-              { type: "text", text },
-              ...imgs.map((im) => ({ type: "image" as const, image: im.dataUrl! })),
-            ],
-          };
-        } else {
-          modelMessages[lastUser] = { role: "user", content: text };
-        }
-      }
-    }
-
-    const candidates = [modelId, ...fallbackChatModelIds(modelId)].filter(
-      (id, i, arr) => arr.indexOf(id) === i,
+    const modelMessages = applyAttachments(modelHistory, turn.message, body.attachments);
+    const requiresTools = Boolean(chatTools && Object.keys(chatTools.tools).length);
+    const candidates = [
+      modelId,
+      ...fallbackChatModelIds(modelId, {
+        streaming: true,
+        tools: requiresTools,
+        images: hasImages,
+      }),
+    ].filter(
+      (candidate, index, all) =>
+        all.indexOf(candidate) === index &&
+        isModelCompatible(candidate, {
+          streaming: true,
+          tools: requiresTools,
+          images: hasImages,
+        }),
     );
-    // If primary is OpenAI and we have Google, prefer trying Google second immediately
-    // (already in fallbacks) — also demote OpenAI when tools are loaded and FAST/ACTION is Google.
-    let lastErr: unknown = null;
-    let result: Awaited<ReturnType<typeof streamText>> | null = null;
-    const runMemorySuggest = intentNeedsMemorySuggest(intent);
-
-    for (const candidate of candidates) {
-      try {
-        const opts: Parameters<typeof streamText>[0] = {
-          model: getChatModel(candidate, "chat"),
-          system,
-          messages: modelMessages,
-          maxSteps: chatTools && Object.keys(chatTools.tools).length ? 5 : 1,
-          async onFinish({ text, usage }) {
-            logGeneration({
-              name: "chat",
-              model: candidate,
-              latencyMs: Date.now() - started,
-              workspaceId,
-              metadata: {
-                mode,
-                intent,
-                tools: chatTools?.toolNames.join(",") ?? null,
-              },
-              usage,
-            });
-            try {
-              if (assistantMessageId) {
-                await supabase
-                  .from("messages")
-                  .update({ content: text, citations })
-                  .eq("id", assistantMessageId);
-              }
-              await supabase
-                .from("conversations")
-                .update({ updated_at: new Date().toISOString() })
-                .eq("id", convId);
-
-              if (env.llmTrainingLogsEnabled) {
-                await supabase.from("llm_training_logs").insert({
-                  workspace_id: workspaceId,
-                  user_id: userId,
-                  project_id: projectId ?? null,
-                  model_id: candidate,
-                  system_prompt: system,
-                  messages_json: priorMessages,
-                  response_text: text,
-                });
-              }
-
-              if (runMemorySuggest) {
-                await suggestMemoriesFromTurn({
-                  supabase,
-                  workspaceId,
-                  userId,
-                  projectId: projectId ?? null,
-                  userMessage: message,
-                  assistantMessage: text,
-                });
-              }
-            } catch (e) {
-              await logError({ area: "chat", error: e, workspaceId, userId });
-            }
-          },
-        };
-        if (chatTools && Object.keys(chatTools.tools).length > 0) {
-          opts.tools = chatTools.tools;
-          opts.toolChoice = "auto";
-        }
-        if (supportsTemperature(candidate)) {
-          opts.temperature = mode === "code" || mode === "knowledge" ? 0.2 : 0.5;
-        }
-        result = await streamText(opts);
-        modelId = candidate;
-        lastErr = null;
-        break;
-      } catch (e) {
-        lastErr = e;
-        await logError({
-          area: "chat",
-          error: e,
-          workspaceId,
-          userId,
-          provider: candidate.split(":")[0],
-        });
-      }
-    }
-
-    if (!result) {
+    if (!candidates.length) {
       throw new AppError({
         area: "chat",
-        category: "provider_error",
-        userMessage: friendlyProviderError(lastErr),
-        internal: lastErr,
+        category: "config_missing",
+        userMessage: requiresTools
+          ? "No configured model supports connected-app tools for this request. Nothing was sent."
+          : "No compatible configured model is available for this request.",
       });
     }
 
-    const response = result.toTextStreamResponse();
-    const headers = new Headers(response.headers);
-    headers.set("x-aria-conversation-id", convId!);
-    if (assistantMessageId) headers.set("x-aria-message-id", assistantMessageId);
-    if (citations.length) {
-      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(citations))));
-      headers.set("x-aria-citations", b64);
-    }
-    return new Response(response.body, { status: 200, headers });
+    await supabase
+      .from("messages")
+      .update({ status: "streaming", started_at: new Date().toISOString() })
+      .eq("id", assistantMessageId)
+      .eq("workspace_id", ctx.workspaceId)
+      .eq("status", "pending");
+
+    modelId = candidates[0];
+    return createAgentStreamResponse({
+      req,
+      started,
+      supabase,
+      ctx,
+      body,
+      intent,
+      conversationId,
+      assistantMessageId,
+      userMessageId: turn.userMessageId,
+      candidates,
+      system,
+      modelMessages,
+      chatTools,
+      citations,
+    });
   } catch (error) {
+    const traceId = newTraceId();
+    if (supabase && assistantMessageId && ctx) {
+      const terminal = classifyTerminalError(error, req.signal.aborted);
+      const userMessage = error instanceof AppError ? error.userMessage : terminal.userMessage;
+      await supabase
+        .from("messages")
+        .update({
+          status: terminal.status,
+          content: userMessage,
+          error_code: error instanceof AppError ? error.category : terminal.code,
+          error_message: userMessage,
+          trace_id: traceId,
+          completed_at: new Date().toISOString(),
+          cancelled_at: terminal.status === "cancelled" ? new Date().toISOString() : null,
+        })
+        .eq("id", assistantMessageId)
+        .eq("workspace_id", ctx.workspaceId)
+        .in("status", ["pending", "streaming"]);
+    }
     if (error instanceof ZodError) {
       return apiError(
         new AppError({
@@ -389,6 +371,7 @@ export async function POST(req: Request) {
           workspaceId: ctx?.workspaceId,
           userId: ctx?.userId,
           latencyMs: Date.now() - started,
+          traceId,
         },
       );
     }
@@ -397,29 +380,665 @@ export async function POST(req: Request) {
       workspaceId: ctx?.workspaceId,
       userId: ctx?.userId,
       latencyMs: Date.now() - started,
+      traceId,
     });
   }
 }
 
-function friendlyProviderError(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err ?? "");
-  if (/429|rate limit|quota|billing details|exceeded your current quota/i.test(msg)) {
-    return "The AI provider hit a quota/billing limit (often OpenAI). Aria will try other models when configured — set ACTION_MODEL or FAST_MODEL to google:… in env, or top up OpenAI.";
+async function resolveConversation(
+  supabase: SupabaseClient,
+  ctx: Awaited<ReturnType<typeof requireSessionApi>>,
+  body: ParsedBody,
+): Promise<string> {
+  if (body.conversationId) {
+    const { data } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("id", body.conversationId)
+      .eq("workspace_id", ctx.workspaceId)
+      .maybeSingle();
+    if (!data) throw new AppError({ area: "chat", category: "not_found", userMessage: "Conversation not found." });
+    await supabase
+      .from("conversations")
+      .update({ mode: body.mode })
+      .eq("id", body.conversationId)
+      .eq("workspace_id", ctx.workspaceId);
+    return body.conversationId;
   }
-  if (/401|incorrect api key|invalid api key/i.test(msg)) {
-    return "The AI API key looks invalid. Check OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY on Vercel.";
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .insert({
+      workspace_id: ctx.workspaceId,
+      user_id: ctx.userId,
+      project_id: body.projectId ?? null,
+      title: truncate(body.message, 60),
+      mode: body.mode,
+      initial_request_id: body.idempotencyKey,
+    })
+    .select("id")
+    .single();
+  if (data?.id) return data.id;
+  if (error?.code === "23505") {
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("workspace_id", ctx.workspaceId)
+      .eq("user_id", ctx.userId)
+      .eq("initial_request_id", body.idempotencyKey)
+      .maybeSingle();
+    if (existing?.id) return existing.id;
   }
-  if (/model|not found|does not exist/i.test(msg)) {
-    return "The selected chat model is unavailable. Try changing DEFAULT_CHAT_MODEL or FAST_MODEL.";
+  throw new AppError({
+    area: "chat",
+    category: "internal",
+    userMessage: "Could not start the conversation.",
+    internal: error,
+  });
+}
+
+async function startTurn(
+  supabase: SupabaseClient,
+  ctx: Awaited<ReturnType<typeof requireSessionApi>>,
+  conversationId: string,
+  body: ParsedBody,
+): Promise<StartedTurn> {
+  if (body.retryAssistantMessageId) {
+    const { data: assistant } = await supabase
+      .from("messages")
+      .select("id, status, parent_message_id")
+      .eq("id", body.retryAssistantMessageId)
+      .eq("conversation_id", conversationId)
+      .eq("workspace_id", ctx.workspaceId)
+      .eq("role", "assistant")
+      .maybeSingle();
+    if (!assistant || !["failed", "cancelled"].includes(assistant.status) || !assistant.parent_message_id) {
+      throw new AppError({
+        area: "chat",
+        category: "validation",
+        userMessage: "Only a failed or cancelled assistant turn can be retried.",
+      });
+    }
+    const { data: user } = await supabase
+      .from("messages")
+      .select("id, content")
+      .eq("id", assistant.parent_message_id)
+      .eq("conversation_id", conversationId)
+      .eq("workspace_id", ctx.workspaceId)
+      .eq("role", "user")
+      .maybeSingle();
+    if (!user) throw new AppError({ area: "chat", category: "not_found", userMessage: "The original user turn was not found." });
+    const { data: reset, error } = await supabase
+      .from("messages")
+      .update({
+        status: "pending",
+        content: "",
+        error_code: null,
+        error_message: null,
+        trace_id: null,
+        idempotency_key: body.idempotencyKey,
+        started_at: null,
+        completed_at: null,
+        cancelled_at: null,
+        metadata: { stream_version: 1, events: [], retry: true },
+      })
+      .eq("id", assistant.id)
+      .eq("workspace_id", ctx.workspaceId)
+      .in("status", ["failed", "cancelled"])
+      .select("id")
+      .maybeSingle();
+    if (error || !reset) {
+      throw new AppError({
+        area: "chat",
+        category: "validation",
+        userMessage: "This turn was already retried in another request.",
+        internal: error,
+      });
+    }
+    return { userMessageId: user.id, assistantMessageId: assistant.id, message: user.content };
   }
-  if (/temperature/i.test(msg)) {
-    return "This model rejected the request options. Retry — Aria will use a compatible setup.";
+
+  const userInsert = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      workspace_id: ctx.workspaceId,
+      user_id: ctx.userId,
+      role: "user",
+      content: body.message,
+      status: "completed",
+      idempotency_key: body.idempotencyKey,
+      completed_at: new Date().toISOString(),
+      metadata: {
+        attachment_names: body.attachments?.map((item) => item.name) ?? [],
+      },
+    })
+    .select("id")
+    .single();
+
+  let userMessageId = userInsert.data?.id as string | undefined;
+  if (!userMessageId && userInsert.error?.code === "23505") {
+    const { data: existingUser } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("workspace_id", ctx.workspaceId)
+      .eq("user_id", ctx.userId)
+      .eq("idempotency_key", body.idempotencyKey)
+      .eq("role", "user")
+      .maybeSingle();
+    userMessageId = existingUser?.id;
   }
-  if (/tool|schema|function/i.test(msg)) {
-    return "The model could not use connected-app tools for this request. Try again, or reconnect Gmail on Connections.";
+  if (!userMessageId) {
+    throw new AppError({
+      area: "chat",
+      category: "internal",
+      userMessage: "Could not save your message.",
+      internal: userInsert.error,
+    });
   }
-  // Surface a short safe snippet so "Chat failed" is actionable.
-  const short = msg.replace(/\s+/g, " ").trim().slice(0, 180);
-  if (short) return `The assistant could not respond (${short}).`;
-  return "The assistant could not respond. Check your LLM API keys and try again.";
+
+  const { data: existingAssistant } = await supabase
+    .from("messages")
+    .select("id, status, content")
+    .eq("workspace_id", ctx.workspaceId)
+    .eq("user_id", ctx.userId)
+    .eq("idempotency_key", body.idempotencyKey)
+    .eq("role", "assistant")
+    .maybeSingle();
+  if (existingAssistant) {
+    return {
+      userMessageId,
+      assistantMessageId: existingAssistant.id,
+      message: body.message,
+      duplicateStatus: existingAssistant.status,
+      duplicateContent: existingAssistant.content,
+    };
+  }
+
+  const { data: assistant, error } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      workspace_id: ctx.workspaceId,
+      user_id: ctx.userId,
+      role: "assistant",
+      content: "",
+      status: "pending",
+      idempotency_key: body.idempotencyKey,
+      parent_message_id: userMessageId,
+      metadata: { stream_version: 1, events: [] },
+    })
+    .select("id")
+    .single();
+  if (error || !assistant) {
+    throw new AppError({
+      area: "chat",
+      category: "internal",
+      userMessage: "Could not prepare the assistant turn.",
+      internal: error,
+    });
+  }
+  return { userMessageId, assistantMessageId: assistant.id, message: body.message };
+}
+
+function trimHistory(messages: Array<{ role: "user" | "assistant"; content: string }>): CoreMessage[] {
+  const output: Array<{ role: "user" | "assistant"; content: string }> = [];
+  let chars = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const item = messages[index];
+    const content = item.content.slice(0, 8_000);
+    if (chars + content.length > MAX_HISTORY_CHARS && output.length) break;
+    output.unshift({ ...item, content });
+    chars += content.length;
+  }
+  return output;
+}
+
+function applyAttachments(
+  messages: CoreMessage[],
+  currentMessage: string,
+  attachments: ParsedBody["attachments"],
+): CoreMessage[] {
+  if (!attachments?.length) return messages;
+  const result = [...messages];
+  const documents = attachments.filter((item) => item.kind === "document" && item.text);
+  const images = attachments.filter((item) => item.kind === "image" && item.dataUrl);
+  const lastUser = result.map((item) => item.role).lastIndexOf("user");
+  if (lastUser < 0) return result;
+  let text = currentMessage;
+  for (const document of documents) text += `\n\n[Attached document: ${document.name}]\n${document.text}`;
+  result[lastUser] = images.length
+    ? {
+        role: "user",
+        content: [
+          { type: "text", text },
+          ...images.map((image) => ({ type: "image" as const, image: image.dataUrl! })),
+        ],
+      }
+    : { role: "user", content: text };
+  return result;
+}
+
+function createAgentStreamResponse(params: {
+  req: Request;
+  started: number;
+  supabase: SupabaseClient;
+  ctx: Awaited<ReturnType<typeof requireSessionApi>>;
+  body: ParsedBody;
+  intent: ReturnType<typeof classifyChatIntent>;
+  conversationId: string;
+  assistantMessageId: string;
+  userMessageId: string;
+  candidates: string[];
+  system: string;
+  modelMessages: CoreMessage[];
+  chatTools: Awaited<ReturnType<typeof buildChatTools>> | null;
+  citations: Citation[];
+}): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      void runAgentStream(params, controller);
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: responseHeaders(params.conversationId, params.assistantMessageId, params.citations),
+  });
+}
+
+async function runAgentStream(
+  params: Parameters<typeof createAgentStreamResponse>[0],
+  controller: ReadableStreamDefaultController<Uint8Array>,
+) {
+  const safeEnqueue = (event: ChatStreamEvent) => {
+    try {
+      controller.enqueue(encodeChatStreamEvent(event));
+    } catch {
+      // The client disconnected; persistence still completes below.
+    }
+  };
+  safeEnqueue({
+    type: "turn_started",
+    conversationId: params.conversationId,
+    messageId: params.assistantMessageId,
+  });
+
+  let accumulated = "";
+  let lastError: unknown = null;
+  let selectedModel = params.candidates[0];
+  let emittedProviderOutput = false;
+  let toolActivity = false;
+  let toolCalls = 0;
+  const uiEvents: ChatStreamEvent[] = [];
+
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(new Error("Chat request timed out.")), TURN_TIMEOUT_MS);
+  const abortFromRequest = () => timeout.abort(new DOMException("Client disconnected", "AbortError"));
+  params.req.signal.addEventListener("abort", abortFromRequest, { once: true });
+
+  try {
+    for (const candidate of params.candidates) {
+      selectedModel = candidate;
+      try {
+        const options: Parameters<typeof streamText>[0] = {
+          model: getChatModel(candidate, "chat"),
+          system: params.system,
+          messages: params.modelMessages,
+          maxSteps:
+            params.chatTools && Object.keys(params.chatTools.tools).length
+              ? MAX_AGENT_STEPS
+              : 1,
+          maxRetries: 0,
+          abortSignal: timeout.signal,
+        };
+        if (params.chatTools && Object.keys(params.chatTools.tools).length) {
+          options.tools = params.chatTools.tools;
+          options.toolChoice = "auto";
+        }
+        if (supportsTemperature(candidate)) {
+          options.temperature =
+            params.body.mode === "code" || params.body.mode === "knowledge" ? 0.2 : 0.5;
+        }
+
+        const result = await streamText(options);
+        for await (const rawPart of result.fullStream) {
+          // Dynamic tool maps erase the tool-result discriminant in this SDK's
+          // generic inference even though the runtime stream emits that part.
+          const part = rawPart as typeof rawPart | {
+            type: "tool-result";
+            result: unknown;
+            toolName: string;
+            toolCallId: string;
+          };
+          if (part.type === "error") throw part.error;
+          if (part.type === "text-delta") {
+            emittedProviderOutput = true;
+            accumulated += part.textDelta;
+            safeEnqueue({ type: "text_delta", delta: part.textDelta });
+          } else if (part.type === "tool-call") {
+            toolActivity = true;
+            toolCalls += 1;
+            if (toolCalls > MAX_TOOL_CALLS) throw new Error("Maximum tool-call limit exceeded.");
+            await persistMessageEvent({
+              supabase: params.supabase,
+              event: null,
+              eventType: "tool_call",
+              messageId: params.assistantMessageId,
+              conversationId: params.conversationId,
+              workspaceId: params.ctx.workspaceId,
+              userId: params.ctx.userId,
+              toolName: part.toolName,
+              payload: { tool_call_id: part.toolCallId },
+            });
+          } else if (part.type === "tool-result") {
+            toolActivity = true;
+            const resultValue = part.result as Record<string, unknown> | null;
+            const isApproval =
+              resultValue &&
+              resultValue.status === "pending_approval" &&
+              typeof resultValue.approvalId === "string";
+            if (isApproval) {
+              const event: ChatStreamEvent = {
+                type: "approval",
+                approvalId: String(resultValue.approvalId),
+                toolName: part.toolName,
+                summary:
+                  typeof resultValue.summary === "string"
+                    ? resultValue.summary
+                    : `Approve ${part.toolName}`,
+              };
+              uiEvents.push(event);
+              safeEnqueue(event);
+              await persistMessageEvent({
+                supabase: params.supabase,
+                event,
+                messageId: params.assistantMessageId,
+                conversationId: params.conversationId,
+                workspaceId: params.ctx.workspaceId,
+                userId: params.ctx.userId,
+                toolName: part.toolName,
+                approvalId: event.approvalId,
+              });
+            } else {
+              await persistMessageEvent({
+                supabase: params.supabase,
+                event: null,
+                eventType: "tool_result",
+                messageId: params.assistantMessageId,
+                conversationId: params.conversationId,
+                workspaceId: params.ctx.workspaceId,
+                userId: params.ctx.userId,
+                toolName: part.toolName,
+                payload: { tool_call_id: part.toolCallId, returned: true },
+              });
+            }
+          }
+        }
+
+        if (!accumulated.trim() && uiEvents.some((event) => event.type === "approval")) {
+          accumulated = "I prepared the connected-app action for your approval. Nothing has been sent or changed yet.";
+          safeEnqueue({ type: "text_delta", delta: accumulated });
+        }
+        if (!accumulated.trim()) throw new Error("The model returned an empty response.");
+
+        const usage = await result.usage;
+        logGeneration({
+          name: "chat",
+          model: candidate,
+          latencyMs: Date.now() - params.started,
+          workspaceId: params.ctx.workspaceId,
+          metadata: {
+            mode: params.body.mode,
+            intent: params.intent,
+            tools: params.chatTools?.toolNames.join(",") ?? null,
+            tool_calls: toolCalls,
+          },
+          usage,
+        });
+
+        if (
+          intentNeedsMemorySuggest(
+            params.intent,
+            params.body.message,
+            Boolean(params.body.attachments?.length),
+          )
+        ) {
+          const suggestions = await suggestMemoriesFromTurn({
+            supabase: params.supabase,
+            workspaceId: params.ctx.workspaceId,
+            userId: params.ctx.userId,
+            projectId: params.body.projectId ?? null,
+            userMessage: params.body.message,
+            assistantMessage: accumulated,
+            sourceMessageId: params.userMessageId,
+          });
+          for (const suggestion of suggestions.suggestions) {
+            const event: ChatStreamEvent = {
+              type: "memory_suggestion",
+              memoryId: suggestion.id,
+              content: suggestion.content,
+              memoryType: suggestion.type,
+            };
+            uiEvents.push(event);
+            safeEnqueue(event);
+            await persistMessageEvent({
+              supabase: params.supabase,
+              event,
+              messageId: params.assistantMessageId,
+              conversationId: params.conversationId,
+              workspaceId: params.ctx.workspaceId,
+              userId: params.ctx.userId,
+            });
+          }
+        }
+
+        await completeAssistantMessage({
+          supabase: params.supabase,
+          assistantMessageId: params.assistantMessageId,
+          content: accumulated,
+          events: uiEvents,
+          citations: params.citations,
+        });
+        await params.supabase
+          .from("conversations")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", params.conversationId)
+          .eq("workspace_id", params.ctx.workspaceId);
+
+        if (env.llmTrainingLogsEnabled) {
+          await params.supabase.from("llm_training_logs").insert({
+            workspace_id: params.ctx.workspaceId,
+            user_id: params.ctx.userId,
+            project_id: params.body.projectId ?? null,
+            model_id: candidate,
+            system_prompt: params.system,
+            messages_json: params.modelMessages,
+            response_text: accumulated,
+          });
+        }
+
+        safeEnqueue({
+          type: "done",
+          status: "completed",
+          messageId: params.assistantMessageId,
+          model: candidate,
+        });
+        controller.close();
+        return;
+      } catch (error) {
+        lastError = error;
+        await logError({
+          area: "chat",
+          error,
+          workspaceId: params.ctx.workspaceId,
+          userId: params.ctx.userId,
+          provider: candidate.split(":")[0],
+        });
+        if (emittedProviderOutput || toolActivity || timeout.signal.aborted) break;
+      }
+    }
+
+    const terminal = classifyTerminalError(lastError, params.req.signal.aborted);
+    const traceId = await logError({
+      area: "chat",
+      error: lastError,
+      workspaceId: params.ctx.workspaceId,
+      userId: params.ctx.userId,
+      provider: selectedModel.split(":")[0],
+      latencyMs: Date.now() - params.started,
+    });
+    const content = accumulated.trim()
+      ? `${accumulated}\n\n${terminal.userMessage}`
+      : terminal.userMessage;
+    await params.supabase
+      .from("messages")
+      .update({
+        status: terminal.status,
+        content,
+        error_code: terminal.code,
+        error_message: terminal.userMessage,
+        trace_id: traceId,
+        completed_at: new Date().toISOString(),
+        cancelled_at: terminal.status === "cancelled" ? new Date().toISOString() : null,
+        metadata: { stream_version: 1, events: uiEvents },
+      })
+      .eq("id", params.assistantMessageId)
+      .eq("workspace_id", params.ctx.workspaceId)
+      .in("status", ["pending", "streaming"]);
+    const errorEvent: ChatStreamEvent = {
+      type: "error",
+      code: terminal.code,
+      message: terminal.userMessage,
+      traceId,
+      status: terminal.status,
+    };
+    safeEnqueue(errorEvent);
+    await persistMessageEvent({
+      supabase: params.supabase,
+      event: errorEvent,
+      messageId: params.assistantMessageId,
+      conversationId: params.conversationId,
+      workspaceId: params.ctx.workspaceId,
+      userId: params.ctx.userId,
+    });
+    safeEnqueue({
+      type: "done",
+      status: terminal.status,
+      messageId: params.assistantMessageId,
+      model: selectedModel,
+    });
+    controller.close();
+  } finally {
+    clearTimeout(timer);
+    params.req.signal.removeEventListener("abort", abortFromRequest);
+  }
+}
+
+async function completeAssistantMessage(params: {
+  supabase: SupabaseClient;
+  assistantMessageId: string;
+  content: string;
+  events: ChatStreamEvent[];
+  citations: Citation[];
+}) {
+  const { error } = await params.supabase
+    .from("messages")
+    .update({
+      status: "completed",
+      content: params.content,
+      citations: params.citations,
+      error_code: null,
+      error_message: null,
+      trace_id: null,
+      completed_at: new Date().toISOString(),
+      metadata: { stream_version: 1, events: params.events },
+    })
+    .eq("id", params.assistantMessageId)
+    .in("status", ["pending", "streaming"]);
+  if (error) {
+    throw new AppError({
+      area: "chat",
+      category: "internal",
+      userMessage: "The response completed but could not be saved.",
+      internal: error,
+    });
+  }
+}
+
+async function persistMessageEvent(params: {
+  supabase: SupabaseClient;
+  event: ChatStreamEvent | null;
+  eventType?: string;
+  messageId: string;
+  conversationId: string;
+  workspaceId: string;
+  userId: string;
+  toolName?: string;
+  approvalId?: string;
+  payload?: Record<string, unknown>;
+}) {
+  const eventType =
+    params.eventType ??
+    (params.event?.type === "approval"
+      ? "approval"
+      : params.event?.type === "memory_saved"
+        ? "memory_saved"
+        : params.event?.type === "memory_suggestion"
+          ? "memory_suggestion"
+          : params.event?.type === "error"
+            ? "error"
+            : null);
+  if (!eventType) return;
+  const { error } = await params.supabase.from("message_events").insert({
+    message_id: params.messageId,
+    conversation_id: params.conversationId,
+    workspace_id: params.workspaceId,
+    user_id: params.userId,
+    event_type: eventType,
+    status: params.event?.type === "error" ? params.event.status : "completed",
+    tool_name: params.toolName ?? (params.event?.type === "approval" ? params.event.toolName : null),
+    approval_id: params.approvalId ?? (params.event?.type === "approval" ? params.event.approvalId : null),
+    payload: params.payload ?? params.event ?? {},
+  });
+  if (error) {
+    await logError({ area: "chat", error, workspaceId: params.workspaceId, userId: params.userId });
+  }
+}
+
+function responseHeaders(conversationId: string, messageId: string, citations: Citation[] = []) {
+  const headers = new Headers({
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+    "x-aria-conversation-id": conversationId,
+    "x-aria-message-id": messageId,
+  });
+  if (citations.length) {
+    headers.set(
+      "x-aria-citations",
+      Buffer.from(JSON.stringify(citations), "utf8").toString("base64"),
+    );
+  }
+  return headers;
+}
+
+function eventListResponse(params: {
+  conversationId: string;
+  messageId: string;
+  text: string;
+  events: ChatStreamEvent[];
+}) {
+  const events: ChatStreamEvent[] = [
+    { type: "turn_started", conversationId: params.conversationId, messageId: params.messageId },
+    { type: "text_delta", delta: params.text },
+    ...params.events,
+    { type: "done", status: "completed", messageId: params.messageId },
+  ];
+  return new Response(Buffer.concat(events.map((event) => Buffer.from(encodeChatStreamEvent(event)))), {
+    status: 200,
+    headers: responseHeaders(params.conversationId, params.messageId),
+  });
+}
+
+function completedReplayResponse(conversationId: string, messageId: string, content: string) {
+  return eventListResponse({ conversationId, messageId, text: content, events: [] });
 }

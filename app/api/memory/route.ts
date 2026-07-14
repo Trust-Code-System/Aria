@@ -31,6 +31,10 @@ const updateSchema = z.object({
   content: z.string().trim().min(2).max(100_000).optional(),
   approval_status: z.enum(["approved", "suggested", "disabled"]).optional(),
   type: memoryTypes.optional(),
+  importance: z.number().int().min(1).max(5).optional(),
+  active: z.boolean().optional(),
+  projectId: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
 });
 
 export async function POST(req: Request) {
@@ -68,6 +72,11 @@ export async function POST(req: Request) {
       source: "manual",
       sensitivity: body.sensitivity ?? "low",
       approval_status: "approved" as const,
+      category: body.type,
+      importance: 3,
+      normalized_content: body.content.toLowerCase().replace(/\s+/g, " ").trim(),
+      provenance: { kind: "manual_memory_ui" },
+      active: true,
     };
 
     const { data, error } = await supabase.from("memories").insert(row).select("id").single();
@@ -116,11 +125,27 @@ export async function PATCH(req: Request) {
         internal: parsed.error.flatten(),
       });
     }
-    const { id, ...fields } = parsed.data;
+    const { id, projectId, expiresAt, ...fields } = parsed.data;
+    if (fields.content && looksLikeSecret(fields.content)) {
+      throw new AppError({
+        area: "memory",
+        category: "validation",
+        userMessage: "That looks like a secret or credential, so Aria did not store it.",
+      });
+    }
+    const update: Record<string, unknown> = { ...fields };
+    if (fields.content) {
+      update.normalized_content = fields.content.toLowerCase().replace(/\s+/g, " ").trim();
+    }
+    if (fields.type) update.category = fields.type;
+    if (fields.approval_status === "disabled") update.active = false;
+    if (fields.approval_status === "approved") update.active = true;
+    if (projectId !== undefined) update.project_id = projectId || null;
+    if (expiresAt !== undefined) update.expires_at = expiresAt;
     const supabase = createServerSupabase();
     const { error } = await supabase
       .from("memories")
-      .update(fields)
+      .update(update)
       .eq("id", id)
       .eq("workspace_id", ctx.workspaceId);
     if (error) {

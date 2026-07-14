@@ -12,7 +12,7 @@ export default async function MemoryPage() {
   const [memRes, projRes] = await Promise.all([
     supabase
       .from("memories")
-      .select("id, content, type, source, sensitivity, approval_status, project_id, updated_at")
+      .select("id, content, type, source, sensitivity, approval_status, project_id, updated_at, importance, provenance, active, expires_at, superseded_by, last_used_at")
       .eq("workspace_id", ctx.workspaceId)
       .order("updated_at", { ascending: false }),
     supabase.from("projects").select("id, name").eq("workspace_id", ctx.workspaceId).eq("status", "active"),

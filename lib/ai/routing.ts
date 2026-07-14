@@ -10,6 +10,7 @@ import {
   parseModelId,
   resolveUsableChatModelId,
   upgradeRetiredModelId,
+  isModelCompatible,
   type ProviderName,
 } from "@/lib/ai/providers";
 import type { ChatMode } from "@/lib/ai/prompts";
@@ -105,6 +106,15 @@ function providerAvailableForId(id: string): boolean {
   return Boolean(avail[provider]);
 }
 
+function modelCompatibleForRole(id: string, role: ModelRole): boolean {
+  return isModelCompatible(id, {
+    streaming: true,
+    tools: role === "action",
+    images: role === "vision",
+    structuredOutput: false,
+  });
+}
+
 /**
  * Resolve a chat model id for this turn. Always returns a configured provider
  * when any LLM key exists; otherwise null.
@@ -123,15 +133,15 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
   const roleModel = envModelForRole(role);
   if (roleModel) {
     const upgraded = upgradeRetiredModelId(roleModel);
-    if (providerAvailableForId(upgraded)) return upgraded;
+    if (providerAvailableForId(upgraded) && modelCompatibleForRole(upgraded, role)) return upgraded;
   }
 
   // Action turns: prefer FAST_MODEL / Google when ACTION_MODEL unset — OpenAI
   // quota must not block Gmail approvals while greetings still work.
   if (role === "action") {
     const fast = (env.fastModel || "").trim();
-    if (fast && providerAvailableForId(fast)) return upgradeRetiredModelId(fast);
-    if (avail.google) return LATEST_CHAT_MODELS.google;
+    if (fast && providerAvailableForId(fast) && modelCompatibleForRole(fast, role)) return upgradeRetiredModelId(fast);
+    if (avail.google && modelCompatibleForRole(LATEST_CHAT_MODELS.google, role)) return LATEST_CHAT_MODELS.google;
   }
 
   // Honor explicit preferred if its provider is available.
@@ -140,7 +150,7 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
     const { provider } = parseModelId(upgraded);
     // Skip preferred OpenAI for action when we already tried role/fast above —
     // still allow preferred for other roles.
-    if (avail[provider]) return upgraded;
+    if (avail[provider] && modelCompatibleForRole(upgraded, role)) return upgraded;
   }
 
   const fallbackDefault = resolveUsableChatModelId(input.preferred);
@@ -149,20 +159,20 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
       for (const p of preferredProviders("low")) {
         if (avail[p]) {
           const id = modelForProvider(p);
-          if (id) return id;
+          if (id && modelCompatibleForRole(id, role)) return id;
         }
       }
     }
-    return fallbackDefault;
+    return fallbackDefault && modelCompatibleForRole(fallbackDefault, role) ? fallbackDefault : null;
   }
 
   for (const p of preferredProviders(complexity)) {
     if (!avail[p]) continue;
     const id = modelForProvider(p);
-    if (id) return id;
+    if (id && modelCompatibleForRole(id, role)) return id;
   }
 
-  return fallbackDefault;
+  return fallbackDefault && modelCompatibleForRole(fallbackDefault, role) ? fallbackDefault : null;
 }
 
 /** Soft budget estimate in "units" for admin/cost awareness (not billed). */

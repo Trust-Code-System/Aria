@@ -14,6 +14,7 @@ import { continueList } from "@/lib/editor/list-continuation";
 import { startDictation, speechRecognitionSupported } from "@/lib/voice/speech";
 import { haptic } from "@/lib/ui/haptics";
 import { cn } from "@/lib/utils";
+import { parseChatStreamLine, type ChatStreamEvent } from "@/lib/chat/stream-protocol";
 
 interface ChatProps {
   conversationId?: string;
@@ -62,6 +63,8 @@ export function Chat({
   const dictationRef = React.useRef<{ stop: () => void } | null>(null);
   const micBaseRef = React.useRef("");
   const pendingCaretRef = React.useRef<number | null>(null);
+  const inFlightRef = React.useRef(false);
+  const abortRef = React.useRef<AbortController | null>(null);
 
   const micSupported = React.useMemo(() => speechRecognitionSupported(), []);
 
@@ -81,7 +84,13 @@ export function Chat({
     }
   }, [input]);
 
-  React.useEffect(() => () => dictationRef.current?.stop(), []);
+  React.useEffect(
+    () => () => {
+      dictationRef.current?.stop();
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   // ---- Attachments ----------------------------------------------------------
   const readyAttachments = attachments.filter((a) => a.status === "ready");
@@ -221,103 +230,215 @@ export function Chat({
 
   async function send() {
     const text = input.trim();
-    if ((!text && readyAttachments.length === 0) || streaming) return;
-    if (attachments.some((a) => a.status === "processing")) {
+    if ((!text && readyAttachments.length === 0) || inFlightRef.current) return;
+    if (attachments.some((item) => item.status === "processing")) {
       toastError("Still reading attachments", "Give it a second and try again.");
       return;
     }
     haptic("medium");
-
-    const displayAttachments: ChatAttachment[] = readyAttachments.map((a) => ({
-      kind: a.kind,
-      name: a.name,
-      dataUrl: a.kind === "image" ? a.dataUrl : undefined,
+    const displayAttachments: ChatAttachment[] = readyAttachments.map((item) => ({
+      kind: item.kind,
+      name: item.name,
+      dataUrl: item.kind === "image" ? item.dataUrl : undefined,
     }));
-    const payloadAttachments = readyAttachments.map((a) =>
-      a.kind === "image"
-        ? { kind: "image" as const, name: a.name, dataUrl: a.dataUrl }
-        : { kind: "document" as const, name: a.name, text: a.text },
+    const payloadAttachments = readyAttachments.map((item) =>
+      item.kind === "image"
+        ? { kind: "image" as const, name: item.name, dataUrl: item.dataUrl }
+        : { kind: "document" as const, name: item.name, text: item.text },
     );
-
-    const userMsg: ChatMessage = {
-      id: "u_" + Date.now(),
+    const userMessage: ChatMessage = {
+      id: `u_${crypto.randomUUID()}`,
       role: "user",
       content: text,
       attachments: displayAttachments.length ? displayAttachments : undefined,
+      requestAttachments: payloadAttachments.length ? payloadAttachments : undefined,
     };
-    const assistantMsg: ChatMessage = { id: "a_" + Date.now(), role: "assistant", content: "", pending: true };
-    setMessages((m) => [...m, userMsg, assistantMsg]);
+    const assistantMessage: ChatMessage = {
+      id: `a_${crypto.randomUUID()}`,
+      role: "assistant",
+      content: "",
+      pending: true,
+      status: "pending",
+      events: [],
+    };
     setInput("");
     setAttachments([]);
+    await runTurn({
+      text: text || "(see attached files)",
+      payloadAttachments,
+      userMessage,
+      assistantMessage,
+    });
+  }
+
+  async function retry(message: ChatMessage) {
+    if (inFlightRef.current) return;
+    const index = messages.findIndex((item) => item.id === message.id);
+    let userMessage: ChatMessage | null = null;
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      if (messages[cursor].role === "user") {
+        userMessage = messages[cursor];
+        break;
+      }
+    }
+    if (!userMessage) {
+      toastError("Retry unavailable", "The original user message could not be found.");
+      return;
+    }
+    await runTurn({
+      text: userMessage.content || "(see attached files)",
+      payloadAttachments: userMessage.requestAttachments ?? [],
+      userMessage,
+      assistantMessage: message,
+      retryAssistantMessageId: message.id,
+    });
+  }
+
+  async function runTurn(params: {
+    text: string;
+    payloadAttachments: NonNullable<ChatMessage["requestAttachments"]>;
+    userMessage: ChatMessage;
+    assistantMessage: ChatMessage;
+    retryAssistantMessageId?: string;
+  }) {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setStreaming(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const clientAssistantId = params.assistantMessage.id;
+    let assistantMessageId = clientAssistantId;
+    let accumulated = "";
+    let terminalStatus: ChatMessage["status"] = "streaming";
+    let terminalError: Extract<ChatStreamEvent, { type: "error" }> | null = null;
+    let streamEvents: ChatStreamEvent[] = [];
+
+    if (params.retryAssistantMessageId) {
+      setMessages((current) => current.map((item) => item.id === clientAssistantId
+        ? { ...item, content: "", pending: true, status: "pending", errorCode: null, errorMessage: null, traceId: null, events: [] }
+        : item));
+    } else {
+      setMessages((current) => [...current, params.userMessage, params.assistantMessage]);
+    }
 
     try {
-      const res = await fetch("/api/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conversationId: convId,
           projectId,
           mode,
-          message: text || "(see attached files)",
-          attachments: payloadAttachments.length ? payloadAttachments : undefined,
+          message: params.text,
+          idempotencyKey: crypto.randomUUID(),
+          retryAssistantMessageId: params.retryAssistantMessageId,
+          attachments: params.payloadAttachments.length ? params.payloadAttachments : undefined,
         }),
+        signal: controller.signal,
       });
-
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || "The assistant could not respond.");
       }
+      const newConversationId = response.headers.get("x-aria-conversation-id") || convId;
+      assistantMessageId = response.headers.get("x-aria-message-id") || clientAssistantId;
+      const citations = decodeCitations(response.headers.get("x-aria-citations"));
+      if (newConversationId && newConversationId !== convId) setConvId(newConversationId);
 
-      const newConvId = res.headers.get("x-aria-conversation-id") || convId;
-      const assistantMessageId = res.headers.get("x-aria-message-id") || assistantMsg.id;
-      const citationsHeader = res.headers.get("x-aria-citations");
-      let citations: Citation[] = [];
-      if (citationsHeader) {
-        try {
-          citations = JSON.parse(decodeURIComponent(escape(atob(citationsHeader))));
-        } catch {
-          /* ignore malformed header */
-        }
-      }
-      if (newConvId && newConvId !== convId) setConvId(newConvId);
-
-      const reader = res.body.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let acc = "";
+      let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        setMessages((m) =>
-          m.map((msg) => (msg.id === assistantMsg.id ? { ...msg, content: acc, pending: true } : msg)),
-        );
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) handleEvent(parseChatStreamLine(line));
       }
+      buffer += decoder.decode();
+      if (buffer.trim()) handleEvent(parseChatStreamLine(buffer));
 
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === assistantMsg.id
-            ? { ...msg, id: assistantMessageId, content: acc, citations, pending: false }
-            : msg,
-        ),
-      );
-
-      if (!acc.trim()) {
-        throw new Error(
-          "The assistant returned an empty reply. The model may be rate-limited — wait a bit and try again.",
-        );
+      setMessages((current) => current.map((item) => item.id === clientAssistantId
+        ? {
+            ...item,
+            id: assistantMessageId,
+            content: accumulated || terminalError?.message || "The assistant did not return a response.",
+            citations,
+            pending: false,
+            status: terminalStatus === "streaming" ? "failed" : terminalStatus,
+            errorCode: terminalError?.code ?? null,
+            errorMessage: terminalError?.message ?? null,
+            traceId: terminalError?.traceId ?? null,
+            events: streamEvents,
+          }
+        : item));
+      if ((terminalStatus as string) !== "completed" && !terminalError) {
+        throw new Error("The response stream ended before the turn completed.");
       }
-
-      if (!conversationId && newConvId) {
-        router.replace(`/chat/${newConvId}`);
+      if ((terminalStatus as string) === "completed" && !accumulated.trim()) {
+        throw new Error("The assistant returned an empty reply.");
+      }
+      if (!conversationId && newConversationId) {
+        router.replace(`/chat/${newConversationId}`);
         router.refresh();
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
-      setMessages((m) => m.filter((x) => x.id !== assistantMsg.id));
-      toastError("Chat failed", msg);
+    } catch (cause) {
+      const cancelled = controller.signal.aborted;
+      const failureMessage = cancelled
+        ? "This response was cancelled. Nothing was sent by any pending connected-app action."
+        : cause instanceof Error
+          ? cause.message
+          : "Something went wrong.";
+      setMessages((current) => current.map((item) => item.id === clientAssistantId || item.id === assistantMessageId
+        ? {
+            ...item,
+            id: assistantMessageId,
+            content: accumulated || failureMessage,
+            pending: false,
+            status: cancelled ? "cancelled" : "failed",
+            errorCode: terminalError?.code ?? (cancelled ? "cancelled" : "network_error"),
+            errorMessage: terminalError?.message ?? failureMessage,
+            traceId: terminalError?.traceId ?? null,
+            events: streamEvents,
+          }
+        : item));
+      if (!cancelled) toastError("Chat failed", failureMessage);
     } finally {
+      inFlightRef.current = false;
+      abortRef.current = null;
       setStreaming(false);
+    }
+
+    function handleEvent(event: ChatStreamEvent | null) {
+      if (!event) return;
+      if (event.type === "turn_started") {
+        assistantMessageId = event.messageId;
+        terminalStatus = "streaming";
+      } else if (event.type === "text_delta") {
+        accumulated += event.delta;
+      } else if (event.type === "error") {
+        terminalError = event;
+        terminalStatus = event.status;
+      } else if (event.type === "done") {
+        terminalStatus = event.status;
+        assistantMessageId = event.messageId;
+      } else {
+        streamEvents = [...streamEvents, event];
+      }
+      setMessages((current) => current.map((item) => item.id === clientAssistantId
+        ? { ...item, content: accumulated, pending: terminalStatus === "pending" || terminalStatus === "streaming", status: terminalStatus, events: streamEvents }
+        : item));
+    }
+  }
+
+  function decodeCitations(value: string | null): Citation[] {
+    if (!value) return [];
+    try {
+      const bytes = Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes)) as Citation[];
+    } catch {
+      return [];
     }
   }
 
@@ -377,7 +498,12 @@ export function Chat({
           ) : (
             <div className="py-4">
               {messages.map((m) => (
-                <MessageItem key={m.id} message={m} onSaveReport={m.role === "assistant" ? saveReport : undefined} />
+                <MessageItem
+                  key={m.id}
+                  message={m}
+                  onSaveReport={m.role === "assistant" ? saveReport : undefined}
+                  onRetry={m.role === "assistant" ? retry : undefined}
+                />
               ))}
             </div>
           )}
@@ -481,12 +607,12 @@ export function Chat({
                 )}
                 <Button
                   size="icon"
-                  onClick={send}
-                  disabled={!canSend}
-                  aria-label="Send"
+                  onClick={streaming ? () => abortRef.current?.abort() : send}
+                  disabled={streaming ? false : !canSend}
+                  aria-label={streaming ? "Stop response" : "Send"}
                   className="h-9 w-9 shrink-0 rounded-full shadow-none"
                 >
-                  <Send className="h-4 w-4" />
+                  {streaming ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

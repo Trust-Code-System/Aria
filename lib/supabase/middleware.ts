@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { env, configured } from "@/lib/env";
+import { authBypassEnabled, env, configured } from "@/lib/env";
 
 /**
  * Refreshes the Supabase session on every request and guards protected routes.
@@ -14,8 +14,8 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  // Temporary open access — skip login gate. Turn off AUTH_DISABLED to restore.
-  if (env.authDisabled) {
+  // Local-development convenience only; the helper fails closed in production.
+  if (authBypassEnabled()) {
     if (request.nextUrl.pathname === "/login") {
       const url = request.nextUrl.clone();
       url.pathname = "/chat";

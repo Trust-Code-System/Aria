@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSbClient } from "@supabase/supabase-js";
-import { env, configured } from "@/lib/env";
+import { authBypassEnabled, env, configured } from "@/lib/env";
 
 /**
  * Server Supabase client bound to the request's cookies. Respects RLS as the
@@ -11,7 +11,7 @@ import { env, configured } from "@/lib/env";
  * can still read/write (there is no cookie user for RLS).
  */
 export function createServerSupabase() {
-  if (env.authDisabled && configured.supabaseAdmin) {
+  if (authBypassEnabled() && configured.supabaseAdmin) {
     return createAdminSupabase() as ReturnType<typeof createServerClient>;
   }
 

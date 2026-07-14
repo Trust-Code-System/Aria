@@ -13,16 +13,81 @@ export type ProviderName = "openai" | "anthropic" | "google" | "perplexity" | "c
 
 /** Current production-ready chat models, centralized to avoid stale fallbacks. */
 export const LATEST_CHAT_MODELS = {
-  openai: "openai:gpt-5.6",
-  google: "google:gemini-3.5-flash",
-  anthropic: "anthropic:claude-opus-4-8",
-} as const;
+  get openai() {
+    return env.openaiChatModel;
+  },
+  get google() {
+    return env.googleChatModel;
+  },
+  get anthropic() {
+    return env.anthropicChatModel;
+  },
+};
 
 const RETIRED_MODEL_REPLACEMENTS: Record<string, string> = {
   "google:gemini-2.5-flash": LATEST_CHAT_MODELS.google,
-  "openai:gpt-4o-mini": LATEST_CHAT_MODELS.openai,
-  "anthropic:claude-3-5-sonnet-latest": LATEST_CHAT_MODELS.anthropic,
+  "openai:gpt-5.6": env.openaiChatModel,
+  "anthropic:claude-3-5-sonnet-latest": env.anthropicChatModel,
 };
+
+export interface ModelCapabilities {
+  streaming: boolean;
+  tools: boolean;
+  images: boolean;
+  structuredOutput: boolean;
+  temperature: boolean;
+  maxContextTokens: number;
+}
+
+export function modelCapabilities(modelId: string): ModelCapabilities {
+  const { provider, model } = parseModelId(modelId);
+  if (provider === "google") {
+    return {
+      streaming: true,
+      tools: !/image|embedding/i.test(model),
+      images: !/lite|embedding/i.test(model),
+      structuredOutput: true,
+      temperature: true,
+      maxContextTokens: /gemini-3/i.test(model) ? 1_000_000 : 128_000,
+    };
+  }
+  if (provider === "anthropic") {
+    return {
+      streaming: true,
+      tools: /claude-(?:3|4)/i.test(model),
+      images: /claude-(?:3|4)/i.test(model),
+      structuredOutput: false,
+      temperature: true,
+      maxContextTokens: /(?:fable-5|opus-4-8|sonnet-5)/i.test(model) ? 1_000_000 : 200_000,
+    };
+  }
+  if (provider === "openai") {
+    return {
+      streaming: true,
+      tools: /^(gpt-4o|gpt-4\.1|gpt-5|o[134])/i.test(model),
+      images: /^(gpt-4o|gpt-4\.1|gpt-5)/i.test(model),
+      structuredOutput: /^(gpt-4o|gpt-4\.1|gpt-5|o[134])/i.test(model),
+      temperature: !/^(gpt-5|o[0-9])/i.test(model),
+      maxContextTokens: /^(gpt-5|gpt-4\.1)/i.test(model) ? 400_000 : 128_000,
+    };
+  }
+  return {
+    streaming: true,
+    tools: false,
+    images: false,
+    structuredOutput: false,
+    temperature: true,
+    maxContextTokens: 32_000,
+  };
+}
+
+export function isModelCompatible(
+  modelId: string,
+  required: Partial<Pick<ModelCapabilities, "streaming" | "tools" | "images" | "structuredOutput">>,
+): boolean {
+  const caps = modelCapabilities(modelId);
+  return Object.entries(required).every(([key, needed]) => !needed || caps[key as keyof ModelCapabilities] === true);
+}
 
 export function parseModelId(id: string): { provider: ProviderName; model: string } {
   const [provider, ...rest] = id.split(":");
@@ -46,7 +111,7 @@ export function availableProviders(): Record<ProviderName, boolean> {
     anthropic: Boolean(env.anthropicKey),
     google: Boolean(env.googleKey),
     perplexity: Boolean(env.perplexityKey),
-    custom: true, // Always available (local endpoint or VPS)
+    custom: env.customApiConfigured,
   };
 }
 
@@ -110,18 +175,16 @@ export function resolveUsableChatModelId(preferred?: string): string | null {
 
 /** Whether this model accepts a custom temperature in chat/completions. */
 export function supportsTemperature(modelId: string): boolean {
-  const { provider, model } = parseModelId(modelId);
-  if (provider === "openai") {
-    // GPT-5 / o-series reject or ignore temperature and often 400 if set.
-    return !/^(gpt-5|o[0-9]|chatgpt-4o-latest)/i.test(model);
-  }
-  return true;
+  return modelCapabilities(modelId).temperature;
 }
 
 /**
  * Ordered fallbacks when the primary model fails (rate limit, quota, etc.).
  */
-export function fallbackChatModelIds(failedId: string): string[] {
+export function fallbackChatModelIds(
+  failedId: string,
+  required: Partial<Pick<ModelCapabilities, "streaming" | "tools" | "images" | "structuredOutput">> = {},
+): string[] {
   const avail = availableProviders();
   const failedProvider = parseModelId(failedId).provider;
   const out: string[] = [];
@@ -132,7 +195,7 @@ export function fallbackChatModelIds(failedId: string): string[] {
   ]) {
     const { provider } = parseModelId(id);
     if (provider === failedProvider) continue;
-    if (avail[provider]) out.push(id);
+    if (avail[provider] && isModelCompatible(id, required)) out.push(id);
   }
   return out;
 }

@@ -3,6 +3,8 @@
  * Used before expensive retrieval / connector loading.
  */
 
+import { looksLikeDurablePersonalStatement, recognizeMemoryCommand } from "@/lib/ai/memory-commands";
+
 export type ChatIntent =
   | "instant"
   | "simple_generation"
@@ -34,9 +36,11 @@ export function classifyChatIntent(input: IntentInput): ChatIntent {
   if (input.mode === "knowledge") return "knowledge";
   if (input.mode === "research") return "research";
   if (input.mode === "code" || input.mode === "report") return "complex_reasoning";
+  if (input.hasAttachments && recognizeMemoryCommand(text, true)) return "personal_context";
   if (input.hasAttachments) return "simple_generation";
 
   if (text.length <= 80 && INSTANT_RE.test(text)) return "instant";
+  if (recognizeMemoryCommand(text)) return "personal_context";
   if (ACTION_RE.test(text)) return "action";
   if (RESEARCH_RE.test(text) && input.mode === "general") return "research";
   if (PERSONAL_RE.test(text)) return "personal_context";
@@ -47,7 +51,7 @@ export function classifyChatIntent(input: IntentInput): ChatIntent {
 
 /** Whether this intent should load connector tools into the model call. */
 export function intentNeedsTools(intent: ChatIntent): boolean {
-  return intent === "action" || intent === "research" || intent === "complex_reasoning";
+  return intent === "action";
 }
 
 /** Whether this intent should load approved memories. */
@@ -56,6 +60,14 @@ export function intentNeedsMemories(intent: ChatIntent): boolean {
 }
 
 /** Whether post-turn memory suggestion should run. */
-export function intentNeedsMemorySuggest(intent: ChatIntent): boolean {
-  return intent !== "instant" && intent !== "simple_generation";
+export function intentNeedsMemorySuggest(
+  intent: ChatIntent,
+  message = "",
+  hasAttachments = false,
+): boolean {
+  if (intent === "instant") return false;
+  if (recognizeMemoryCommand(message, hasAttachments)) return false;
+  if (intent === "personal_context") return true;
+  if (intent === "simple_generation") return looksLikeDurablePersonalStatement(message);
+  return true;
 }

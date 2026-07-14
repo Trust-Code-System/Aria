@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 import { WORKSPACE_COOKIE } from "@/lib/auth/workspace-cookie";
-import { env, isAdminEmail } from "@/lib/env";
+import { authBypassEnabled, env, isAdminEmail } from "@/lib/env";
 import { unauthorized, AppError } from "@/lib/errors";
 
 export interface SessionContext {
@@ -18,7 +18,7 @@ export interface SessionContext {
  * Throws AppError for API routes (use `requireSessionApi`).
  */
 export async function getSessionContext(): Promise<SessionContext | null> {
-  if (env.authDisabled) {
+  if (authBypassEnabled()) {
     return getBypassSessionContext();
   }
 

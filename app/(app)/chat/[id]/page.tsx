@@ -22,17 +22,27 @@ export default async function ChatByIdPage({ params }: { params: { id: string } 
 
   const { data: rows } = await supabase
     .from("messages")
-    .select("id, role, content, citations")
+    .select("id, role, content, citations, status, error_code, error_message, trace_id, metadata")
     .eq("conversation_id", params.id)
     .order("created_at", { ascending: true });
 
   const messages: ChatMessage[] = (rows ?? [])
     .filter((r) => r.role !== "system")
+    .filter((r) => r.role === "user" || Boolean(r.content?.trim()) || r.status === "pending" || r.status === "streaming")
     .map((r) => ({
       id: r.id,
       role: r.role as "user" | "assistant",
       content: r.content,
       citations: Array.isArray(r.citations) ? (r.citations as any) : [],
+      status: (r.status ?? "completed") as ChatMessage["status"],
+      pending: r.status === "pending" || r.status === "streaming",
+      errorCode: r.error_code ?? null,
+      errorMessage: r.error_message ?? null,
+      traceId: r.trace_id ?? null,
+      events:
+        r.metadata && typeof r.metadata === "object" && Array.isArray((r.metadata as any).events)
+          ? (r.metadata as any).events
+          : [],
     }));
 
   const projectName = (conv as any).projects?.name ?? null;

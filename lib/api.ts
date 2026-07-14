@@ -17,6 +17,7 @@ export async function apiError(
     projectId?: string | null;
     provider?: string | null;
     latencyMs?: number | null;
+    traceId?: string;
   },
 ): Promise<NextResponse> {
   const isApp = error instanceof AppError;
@@ -38,6 +39,7 @@ export async function apiError(
     projectId: ctx.projectId,
     statusCode: status,
     latencyMs: ctx.latencyMs,
+    traceId: ctx.traceId,
   });
 
   return NextResponse.json(
