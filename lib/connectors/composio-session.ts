@@ -382,6 +382,10 @@ export async function buildComposioAiSdkTools(params: {
             userId: composioUserId,
             arguments: args as Record<string, unknown>,
             ...(connectedAccountId ? { connectedAccountId } : {}),
+            // Composio requires a toolkit version for manual execution; use the
+            // latest (skip the pin check). Pin per toolkit later if you need
+            // reproducible behavior across Composio toolkit releases.
+            dangerouslySkipVersionCheck: true,
           });
           const reportedFailure = providerResultFailureReason(result);
           if (reportedFailure) {
@@ -544,6 +548,8 @@ export async function executeComposioToolFromApproval(params: {
       userId: composioUserId,
       arguments: arguments_,
       ...(connectedAccountId ? { connectedAccountId } : {}),
+      // Composio requires a toolkit version for manual execution; use latest.
+      dangerouslySkipVersionCheck: true,
     });
     const verified = verifyProviderExecutionResult(result);
     if (!verified.ok) {

@@ -136,11 +136,17 @@ export function resolveRoutedChatModelId(input: RouteInput): string | null {
     if (providerAvailableForId(upgraded) && modelCompatibleForRole(upgraded, role)) return upgraded;
   }
 
-  // Action turns: prefer FAST_MODEL / Google when ACTION_MODEL unset — OpenAI
-  // quota must not block Gmail approvals while greetings still work.
+  // Action (connected-app) turns run a multi-step tool loop. Prefer Anthropic:
+  // Claude handles the AI SDK v3 tool loop reliably, Gemini cannot (it 400s on a
+  // missing thought_signature at round 2), and OpenAI may be quota-blocked. Only
+  // fall back to other tool-capable providers if Anthropic is unavailable.
   if (role === "action") {
+    if (avail.anthropic && modelCompatibleForRole(LATEST_CHAT_MODELS.anthropic, role)) {
+      return LATEST_CHAT_MODELS.anthropic;
+    }
     const fast = (env.fastModel || "").trim();
     if (fast && providerAvailableForId(fast) && modelCompatibleForRole(fast, role)) return upgradeRetiredModelId(fast);
+    if (avail.openai && modelCompatibleForRole(LATEST_CHAT_MODELS.openai, role)) return LATEST_CHAT_MODELS.openai;
     if (avail.google && modelCompatibleForRole(LATEST_CHAT_MODELS.google, role)) return LATEST_CHAT_MODELS.google;
   }
 

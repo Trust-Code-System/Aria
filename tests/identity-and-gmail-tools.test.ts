@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { profilePatch } from "@/lib/ai/memory-actions";
 import { ESSENTIAL_TOOL_SLUGS } from "@/lib/connectors/composio-session";
 import { inferCapabilitiesFromTools } from "@/lib/connectors/capabilities-shared";
+import { modelCapabilities, isModelCompatible } from "@/lib/ai/providers";
 
 describe("profilePatch — identity capture into the always-injected core profile", () => {
   it("captures a name from natural phrasings into display_name + preferred_name", () => {
@@ -48,5 +49,26 @@ describe("Gmail essential tool slugs (send-availability regression)", () => {
     expect(caps.read).toBe(true);
     expect(caps.draft).toBe(true);
     expect(caps.send).toBe(true);
+  });
+});
+
+describe("model tool-capability routing (action-turn reliability)", () => {
+  it("marks modern Claude models as tool-capable", () => {
+    for (const id of [
+      "anthropic:claude-opus-4-8",
+      "anthropic:claude-sonnet-5",
+      "anthropic:claude-haiku-4-5-20251001",
+      "anthropic:claude-3-5-sonnet-latest",
+    ]) {
+      expect(modelCapabilities(id).tools, id).toBe(true);
+      expect(isModelCompatible(id, { tools: true }), id).toBe(true);
+    }
+  });
+
+  it("marks Gemini as NOT tool-capable (breaks the multi-step tool loop)", () => {
+    expect(modelCapabilities("google:gemini-3.5-flash").tools).toBe(false);
+    expect(isModelCompatible("google:gemini-3.5-flash", { tools: true })).toBe(false);
+    // Gemini stays usable for non-tool (greeting/simple) turns.
+    expect(isModelCompatible("google:gemini-3.5-flash", { streaming: true })).toBe(true);
   });
 });

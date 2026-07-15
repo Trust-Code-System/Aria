@@ -44,7 +44,13 @@ export function modelCapabilities(modelId: string): ModelCapabilities {
   if (provider === "google") {
     return {
       streaming: true,
-      tools: !/image|embedding/i.test(model),
+      // Gemini cannot complete the AI SDK v3 multi-step tool loop reliably: on
+      // the 2nd function-call round it 400s on a missing `thought_signature`,
+      // and every connected-app turn here runs multi-step (maxSteps > 1). Mark
+      // Gemini non-tool-capable so action/tool turns route to Claude/OpenAI
+      // instead of failing mid-loop. (Greetings/simple gen still use Gemini —
+      // those never load tools.)
+      tools: false,
       images: !/lite|embedding/i.test(model),
       structuredOutput: true,
       temperature: true,
@@ -52,10 +58,14 @@ export function modelCapabilities(modelId: string): ModelCapabilities {
     };
   }
   if (provider === "anthropic") {
+    // All modern Claude models (3.x, 4.x, Opus 4.8, Sonnet 5, Haiku 4.5, Fable 5)
+    // support tools and vision. The old /claude-(?:3|4)/ test failed on ids like
+    // "claude-opus-4-8"/"claude-sonnet-5", wrongly disabling tools for them.
+    const isClaude = /claude/i.test(model);
     return {
       streaming: true,
-      tools: /claude-(?:3|4)/i.test(model),
-      images: /claude-(?:3|4)/i.test(model),
+      tools: isClaude,
+      images: isClaude,
       structuredOutput: false,
       temperature: true,
       maxContextTokens: /(?:fable-5|opus-4-8|sonnet-5)/i.test(model) ? 1_000_000 : 200_000,
