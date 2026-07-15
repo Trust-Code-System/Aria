@@ -59,6 +59,37 @@ const TOOLKIT_TO_PROVIDER: Record<string, string> = Object.fromEntries(
   Object.entries(PROVIDER_TO_TOOLKIT).map(([p, t]) => [t, p]),
 );
 
+/**
+ * Curated action slugs fetched BY EXACT NAME for toolkits where the important
+ * tools sort late alphabetically.
+ *
+ * Composio's `tools.get({ toolkits })` returns tools alphabetically and truncates
+ * at `limit`. For Gmail that dropped GMAIL_SEND_EMAIL / GMAIL_SEND_DRAFT (they
+ * sort after the cut), so "send" was silently unavailable at chat time even
+ * though the connection had the scope. Requesting these slugs explicitly keeps
+ * the set small (no schema flooding) AND guarantees send/reply are present.
+ * Unknown slugs are ignored by Composio, so this is safe to over-list.
+ */
+export const ESSENTIAL_TOOL_SLUGS: Partial<Record<AriaToolkit, string[]>> = {
+  gmail: [
+    "GMAIL_SEND_EMAIL",
+    "GMAIL_SEND_DRAFT",
+    "GMAIL_CREATE_EMAIL_DRAFT",
+    "GMAIL_REPLY_TO_THREAD",
+    "GMAIL_FETCH_EMAILS",
+    "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+    "GMAIL_FETCH_MESSAGE_BY_THREAD_ID",
+    "GMAIL_LIST_THREADS",
+    "GMAIL_GET_PROFILE",
+  ],
+  googlecalendar: [
+    "GOOGLECALENDAR_CREATE_EVENT",
+    "GOOGLECALENDAR_FIND_EVENT",
+    "GOOGLECALENDAR_FIND_FREE_SLOTS",
+    "GOOGLECALENDAR_GET_CURRENT_DATE_TIME",
+  ],
+};
+
 /** Tools that must never auto-execute — approval required. */
 let client: Composio | null = null;
 
@@ -223,12 +254,31 @@ export async function buildComposioAiSdkTools(params: {
   const composio = getComposioClient();
   let rawTools: OpenAiFnTool[] = [];
   try {
-    rawTools = normalizeOpenAiTools(
-      await composio.tools.get(composioUserId, {
-        toolkits: usableToolkits,
-        limit: 40,
-      }),
-    );
+    // Fetch curated action slugs by exact name (avoids the alphabetical
+    // truncation that hid GMAIL_SEND_EMAIL); fall back to toolkit discovery
+    // only for apps without a curated essential set.
+    const explicitSlugs = usableToolkits.flatMap((tk) => ESSENTIAL_TOOL_SLUGS[tk] ?? []);
+    const discoveryToolkits = usableToolkits.filter((tk) => !ESSENTIAL_TOOL_SLUGS[tk]);
+    const collected: OpenAiFnTool[] = [];
+    if (explicitSlugs.length) {
+      collected.push(
+        ...normalizeOpenAiTools(await composio.tools.get(composioUserId, { tools: explicitSlugs })),
+      );
+    }
+    if (discoveryToolkits.length) {
+      collected.push(
+        ...normalizeOpenAiTools(
+          await composio.tools.get(composioUserId, { toolkits: discoveryToolkits, limit: 40 }),
+        ),
+      );
+    }
+    const seenSlugs = new Set<string>();
+    rawTools = collected.filter((item) => {
+      const slug = (item.function?.name || item.name || "").toUpperCase();
+      if (!slug || seenSlugs.has(slug)) return false;
+      seenSlugs.add(slug);
+      return true;
+    });
   } catch (err) {
     diag.layer = "tool_discovery";
     diag.note = err instanceof Error ? err.message.slice(0, 200) : "tools.get failed";
@@ -262,7 +312,7 @@ export async function buildComposioAiSdkTools(params: {
   // Prefer read/draft/send essentials for Gmail — full toolkit floods the model
   // and often breaks Google/OpenAI tool calling (too many schemas).
   const ESSENTIAL_GMAIL =
-    /^(GMAIL_SEND_EMAIL|GMAIL_SEND_DRAFT|GMAIL_CREATE_EMAIL_DRAFT|GMAIL_FETCH_EMAILS|GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID|GMAIL_GET_PROFILE|GMAIL_LIST_THREADS|GMAIL_FETCH_MESSAGE_BY_THREAD_ID)$/i;
+    /^(GMAIL_SEND_EMAIL|GMAIL_SEND_DRAFT|GMAIL_CREATE_EMAIL_DRAFT|GMAIL_REPLY_TO_THREAD|GMAIL_FETCH_EMAILS|GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID|GMAIL_GET_PROFILE|GMAIL_LIST_THREADS|GMAIL_FETCH_MESSAGE_BY_THREAD_ID)$/i;
   const ESSENTIAL_CALENDAR =
     /^(GOOGLECALENDAR_FIND_EVENT|GOOGLECALENDAR_LIST_EVENTS|GOOGLECALENDAR_CREATE_EVENT|GOOGLECALENDAR_FIND_FREE_SLOTS|GOOGLECALENDAR_GET_CURRENT_DATE_TIME)$/i;
 

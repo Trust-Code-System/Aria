@@ -17,22 +17,61 @@ function memoryType(content: string): string {
   return "preference";
 }
 
-function profilePatch(content: string): Record<string, unknown> {
-  const patterns: Array<[string, RegExp]> = [
-    ["preferred_name", /^(?:my name is|call me)\s+(.+)$/i],
-    ["company", /^(?:my company is|.+ is my (?:development )?company)\s*(.*)$/i],
-    ["role_title", /^my role is\s+(.+)$/i],
-    ["signature", /^my signature is\s+(.+)$/i],
-    ["timezone", /^my timezone is\s+(.+)$/i],
+/** A captured value only counts as a name if every word is capitalized (avoids
+ * "I am a developer" → name "a developer"). Allows 1–4 words. */
+function looksLikeName(value: string): boolean {
+  const cleaned = value.trim().replace(/[.,;!?]+$/, "");
+  const parts = cleaned.split(/\s+/);
+  if (parts.length < 1 || parts.length > 4) return false;
+  return parts.every((part) => /^[A-Z][A-Za-z'’.-]{0,29}$/.test(part));
+}
+
+function extractName(content: string): string | null {
+  const declarations = [
+    /\b(?:my name is|my name's|i am called|you can call me|call me)\s+([A-Za-z'’.\- ]{2,40})/i,
+    /\b([A-Za-z'’.\- ]{2,40}?)\s+is my name\b/i,
   ];
-  for (const [field, pattern] of patterns) {
-    const match = content.match(pattern);
+  for (const re of declarations) {
+    const match = content.match(re);
     if (match) {
-      const value = (match[1] || content.split(/\s+is\s+/i)[0]).trim();
-      if (value) return { [field]: value };
+      // Trim trailing filler like "and I ..." after the name.
+      const candidate = match[1].split(/\s+(?:and|who|,|\.|from|at|is|the)\b/i)[0].trim();
+      if (looksLikeName(candidate)) return candidate;
     }
   }
-  return {};
+  return null;
+}
+
+/**
+ * Derive authoritative profile fields (name/company/role/signature/timezone)
+ * from a durable statement so they land in the ALWAYS-injected core profile,
+ * not just a semantically-retrieved memory blob. Precision over recall: only
+ * confident matches are returned.
+ */
+export function profilePatch(content: string): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  const name = extractName(content);
+  if (name) {
+    patch.preferred_name = name;
+    patch.display_name = name;
+  }
+
+  const singleFieldPatterns: Array<[string, RegExp]> = [
+    ["company", /^(?:my company is|i work at|i run)\s+(.+)$/i],
+    ["company", /^(.+?) is my (?:development )?company\b/i],
+    ["role_title", /^(?:my role is|my title is|my job is)\s+(.+)$/i],
+    ["signature", /^my signature is\s+([\s\S]+)$/i],
+    ["timezone", /^my timezone is\s+(.+)$/i],
+  ];
+  for (const [field, pattern] of singleFieldPatterns) {
+    if (patch[field]) continue;
+    const match = content.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) patch[field] = value;
+  }
+
+  return patch;
 }
 
 export async function executeExplicitMemoryCommand(params: {
