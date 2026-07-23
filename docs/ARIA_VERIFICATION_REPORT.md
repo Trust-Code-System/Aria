@@ -1,5 +1,33 @@
 # Aria verification report
 
+## 2026-07-23 — RLS cross-user isolation guard (P2)
+
+Aria's tenant boundary is entirely Row Level Security (`is_workspace_member`).
+The silent-failure mode is a future migration that adds a workspace-scoped table
+and forgets RLS or the membership policy — cross-tenant reads with no error
+anywhere.
+
+- **Structural isolation test.** `tests/rls-isolation.test.ts` parses every
+  numbered migration and asserts: every `create table` gets `enable row level
+  security`; every table with a `workspace_id` column is covered by an
+  `is_workspace_member` policy (direct or loop-generated, including quoted policy
+  names); and `profiles` is self-scoped to `auth.uid()`. Adding a workspace table
+  without isolation now fails CI. Runs with no database or credentials.
+- **Caught a bug while authoring:** the first run flagged `llm_training_logs`;
+  investigation showed the table *is* isolated (three `is_workspace_member`
+  policies) but its policy names are double-quoted with spaces, which the parser
+  initially skipped. Fixed the matcher; the finding was a parser gap, not a leak.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 21 files, 168 tests (+4 RLS). |
+| `npm run build` | Passed. |
+
+Scope honesty: this proves policies are *declared* in the migrations, not that
+the live DB has them applied. A live two-user read-across-tenants probe would
+need real credentials and is deliberately out of scope here.
+
 ## 2026-07-23 — Memory-failure observability (P2)
 
 Memory-suggestion failures are swallowed in the chat path by design (chat must
