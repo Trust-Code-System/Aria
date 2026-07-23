@@ -1,0 +1,40 @@
+name: E2E
+
+# Runs Playwright against a RUNNING deployment (E2E_BASE_URL), so CI proves the
+# real production flow without booting Supabase + every provider key. Auth specs
+# skip cleanly when the E2E_* secrets are not configured, so this stays green on
+# forks and before secrets are set.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *" # daily smoke
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run Playwright
+        run: npx playwright test
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
