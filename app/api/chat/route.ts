@@ -918,7 +918,9 @@ async function runAgentStream(
       }
     }
 
-    const terminal = classifyTerminalError(lastError, params.req.signal.aborted);
+    const terminal = classifyTerminalError(lastError, params.req.signal.aborted, {
+      requiresTools: Boolean(params.chatTools && Object.keys(params.chatTools.tools).length),
+    });
     const traceId = await logError({
       area: "chat",
       error: lastError,

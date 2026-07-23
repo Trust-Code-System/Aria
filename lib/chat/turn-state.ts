@@ -59,7 +59,11 @@ export interface TerminalError {
 }
 
 /** Map internal/provider failures to stable, safe UI categories. */
-export function classifyTerminalError(error: unknown, requestAborted: boolean): TerminalError {
+export function classifyTerminalError(
+  error: unknown,
+  requestAborted: boolean,
+  opts: { requiresTools?: boolean } = {},
+): TerminalError {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const aborted =
     requestAborted ||
@@ -77,8 +81,9 @@ export function classifyTerminalError(error: unknown, requestAborted: boolean): 
     return {
       status: "failed",
       code: "model_quota_exhausted",
-      userMessage:
-        "The configured AI providers are currently out of quota. No external action was completed. Nothing was sent.",
+      userMessage: opts.requiresTools
+        ? "The tool-capable providers (OpenAI and Anthropic/Claude) are out of quota, so this connected-app action could not run — the free Gemini tier can't run connected-app tools. Add credits to OpenAI or Anthropic, then retry. Nothing was sent."
+        : "The configured AI providers are currently out of quota. No external action was completed. Nothing was sent.",
     };
   }
   if (/timeout|timed out|deadline/i.test(message)) {
