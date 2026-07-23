@@ -10,7 +10,7 @@ import {
   getChatModel,
   isModelCompatible,
   resolveUsableChatModelId,
-  supportsTemperature,
+  resolveTemperature,
 } from "@/lib/ai/providers";
 import { resolveRoutedChatModelId } from "@/lib/ai/routing";
 import { buildSystemPrompt, renderRetrievedContext, type ChatMode } from "@/lib/ai/prompts";
@@ -716,10 +716,13 @@ async function runAgentStream(
           options.tools = params.chatTools.tools;
           options.toolChoice = "auto";
         }
-        if (supportsTemperature(candidate)) {
-          options.temperature =
-            params.body.mode === "code" || params.body.mode === "knowledge" ? 0.2 : 0.5;
-        }
+        // Always set an accepted temperature: this SDK forces 0 when omitted,
+        // which extended-thinking models reject. resolveTemperature returns our
+        // desired value for models that accept it, else their required default 1.
+        options.temperature = resolveTemperature(
+          candidate,
+          params.body.mode === "code" || params.body.mode === "knowledge" ? 0.2 : 0.5,
+        );
 
         const result = await streamText(options);
         for await (const rawPart of result.fullStream) {

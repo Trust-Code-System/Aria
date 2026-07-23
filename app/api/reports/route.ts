@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import { buildSystemPrompt } from "@/lib/ai/prompts";
 import { generateText } from "ai";
 import { apiError, apiOk } from "@/lib/api";
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         model: getChatModel(modelId, "reports"),
         system,
         prompt: `Create a "${body.kind.replace("_", " ")}" titled "${body.title}" from the following material:\n\n${body.generateFrom}`,
-        temperature: 0.4,
+        temperature: resolveTemperature(modelId, 0.4),
       });
       contentMd = text;
     }

@@ -8,7 +8,7 @@
 import { generateText } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import { looksLikeSecret } from "@/lib/ai/memory-safety";
 import { logError } from "@/lib/logging/error-log";
 import { logGeneration } from "@/lib/logging/telemetry";
@@ -75,6 +75,7 @@ export async function suggestMemoriesFromTurn(opts: {
   try {
     const { text } = await generateText({
       model: getChatModel(modelId, "memory"),
+      temperature: resolveTemperature(modelId, 0.2),
       system:
         "You extract durable user memories from a chat turn. Return ONLY a JSON array " +
         '(max 3 items) of {"type":"...","content":"...","confidence":0.0-1.0}. ' +

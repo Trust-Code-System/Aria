@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { executeTool } from "@/lib/connectors/composio";
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import { AppError } from "@/lib/errors";
 
 /**
@@ -82,7 +82,7 @@ export async function triageEmails(emails: RawEmail[]): Promise<TriagedEmail[]> 
       system:
         "You are an executive assistant triaging an inbox. For each email decide a priority (high/medium/low), a one-line reason, and a short suggested reply draft ONLY if a reply is warranted (else null). Return ONLY a JSON array, no prose, with objects: {index, priority, reason, suggestedReply}.",
       prompt: `Triage these emails and return the JSON array:\n\n${list}`,
-      temperature: 0.2,
+      temperature: resolveTemperature(modelId, 0.2),
       maxTokens: 1200,
     });
 

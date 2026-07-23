@@ -17,7 +17,7 @@ import { generateText } from "ai";
 
 import type { SessionContext } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import { configured } from "@/lib/env";
 import { createDraft } from "@/lib/connectors/gmail";
 import { logError } from "@/lib/logging/error-log";
@@ -136,7 +136,7 @@ async function composeEmailDraft(
       `Task: ${task.title}\n${task.description ?? ""}\n\n` +
       `Step to perform: ${step.summary}\n\n` +
       (priorResult ? `Work done so far (use it for content):\n${priorResult.slice(-4000)}` : ""),
-    temperature: 0.4,
+    temperature: resolveTemperature(modelId, 0.4),
   });
 
   const parsed = parseDraft(text);

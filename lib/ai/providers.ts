@@ -62,12 +62,19 @@ export function modelCapabilities(modelId: string): ModelCapabilities {
     // support tools and vision. The old /claude-(?:3|4)/ test failed on ids like
     // "claude-opus-4-8"/"claude-sonnet-5", wrongly disabling tools for them.
     const isClaude = /claude/i.test(model);
+    // `temperature: false` means "does not accept a CUSTOM temperature" — Claude
+    // 4.x/5.x (Opus 4.8, Sonnet 5, Haiku 4.5, Fable 5, Sonnet 4, …) use extended
+    // thinking and only accept their default of 1; any other value (incl. the
+    // SDK's forced 0) is rejected with "temperature is deprecated for this model"
+    // (observed live on claude-opus-4-8, breaking connected-app sends). The chat
+    // route passes 1 for these; only the older 3.x line accepts a custom value.
+    const rejectsTemperature = /(?:opus|sonnet|haiku|fable)-[45]/i.test(model);
     return {
       streaming: true,
       tools: isClaude,
       images: isClaude,
       structuredOutput: false,
-      temperature: true,
+      temperature: isClaude ? !rejectsTemperature : true,
       maxContextTokens: /(?:fable-5|opus-4-8|sonnet-5)/i.test(model) ? 1_000_000 : 200_000,
     };
   }
@@ -186,6 +193,19 @@ export function resolveUsableChatModelId(preferred?: string): string | null {
 /** Whether this model accepts a custom temperature in chat/completions. */
 export function supportsTemperature(modelId: string): boolean {
   return modelCapabilities(modelId).temperature;
+}
+
+/**
+ * The temperature to actually send for this model. The pinned AI SDK (ai@3.4)
+ * FORCES `temperature: 0` whenever a caller omits it, but extended-thinking
+ * models (Claude 4.x/5.x, GPT-5/o-series) reject any non-default value
+ * ("temperature is deprecated for this model" / "does not support 0"). So we
+ * must pass an explicit value: the caller's `desired` when the model accepts a
+ * custom temperature, otherwise the only accepted value, 1. Every chat/agent/
+ * report/memory model call must route its temperature through this.
+ */
+export function resolveTemperature(modelId: string, desired: number): number {
+  return supportsTemperature(modelId) ? desired : 1;
 }
 
 /**

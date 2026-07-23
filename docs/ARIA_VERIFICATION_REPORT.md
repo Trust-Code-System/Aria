@@ -1,5 +1,62 @@
 # Aria verification report
 
+## 2026-07-23 — Live Gmail send VERIFIED + the forced-temperature bug (P0/P1)
+
+The live Gmail send — the mission's single biggest unverified risk — was driven
+end-to-end and **succeeded twice**, but only after finding and fixing the real
+reason connected-app actions failed. This was **not** quota (Anthropic had
+quota); it was a model-config bug.
+
+### Root cause
+
+The pinned AI SDK (`ai@3.4.33`, `@ai-sdk/anthropic@0.0.51` — circa 2024) forces
+`temperature: 0` on every call when the caller omits one (`ai/dist/index.js`:
+`temperature: temperature != null ? temperature : 0`). Every 2026 model Aria is
+configured with rejects a non-default temperature:
+
+- Direct API probe of `claude-opus-4-8`: `temperature=0` → **HTTP 400 "temperature
+  is deprecated for this model"**; `temperature=1` → 200; omitted → 200.
+- `gpt-5.6`: "Unsupported value: 'temperature' does not support 0 … only the
+  default (1) value is supported" (plus a separate `reasoning_effort` + function
+  tools incompatibility on `/v1/chat/completions`).
+
+So the action turn tried Claude first (routing was correct), Claude 400'd on
+temperature, it fell back to gpt-5.6 which also failed, and the turn ended
+`model_tool_incompatible` → "Nothing was sent." Marking capabilities
+`temperature:false` did **not** help, because the SDK then forces 0.
+
+### Fix
+
+New `resolveTemperature(modelId, desired)` in `lib/ai/providers.ts`: returns the
+caller's value for models that accept a custom temperature, else the accepted
+default `1`. Routed **every** model call through it — chat stream, memory
+suggestion, agent execute/runtime, report generation, agent step loop, and Gmail
+triage. This unblocks Claude (primary action model) and the memory-suggest path
+in one place.
+
+### Live verification (localhost:3000, owner logged in)
+
+1. "Send an email to abassibrahim591@gmail.com …" → intent `action` → Claude tool
+   loop → `pending GMAIL_SEND_EMAIL` approval created (no temperature error).
+2. Owner-authorized approve → Composio `approval_resume_ok`.
+3. Receipt: `status=succeeded`, `provider_reference=19f8f97929671823` (real Gmail
+   message id), `error_message=null` — a real **send**, not a draft.
+4. Repeated post-refactor: second receipt `status=succeeded`,
+   `provider_reference=19f8fe411c445686`.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 22 files, 176 tests (+2 resolveTemperature). |
+| `npm run build` | Compiled successfully. |
+| Live Gmail send | **Succeeded twice**, receipts verified in the DB. |
+
+Durable follow-up: upgrade `ai`/`@ai-sdk/*` (the ~2-year-old SDK vs. 2026 models
+is the real root cause; the gpt-5.6 fallback still needs `/v1/responses` for
+function tools). Process note: a concurrent `npm run build` while `next dev` ran
+corrupted `.next` twice — recovered each time by stopping dev, deleting `.next`,
+restarting.
+
 ## 2026-07-23 — Provider reachability + live-send readiness (P1/P2)
 
 Owner chose to build the reachability ping and to do the live Gmail send.

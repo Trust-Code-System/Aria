@@ -17,7 +17,7 @@ import { generateText } from "ai";
 
 import type { SessionContext } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import { runResearch } from "@/lib/ai/research";
 import { classifyStepRisk } from "@/lib/agent/risk";
 import { exposureFromSteps, gateStepForTrifecta } from "@/lib/agent/trifecta";
@@ -54,7 +54,7 @@ async function plan(task: AgentTask): Promise<PlannedStep[]> {
         "Respond with ONLY a JSON array of objects like " +
         '[{"summary":"...","kind":"action"}], where kind is "action" or "review". No prose.',
       prompt: `Task: ${task.title}\n${task.description ?? ""}`.trim(),
-      temperature: 0.2,
+      temperature: resolveTemperature(modelId, 0.2),
     });
     const parsed = parsePlan(text);
     return parsed.length ? parsed.slice(0, 8) : FALLBACK_PLAN;
@@ -91,7 +91,7 @@ async function executeSafeStep(task: AgentTask, step: AgentTaskStep): Promise<st
     model: getChatModel(modelId, "chat"),
     system: "You are an execution agent completing one step of a larger task. Be concise and concrete.",
     prompt: `Overall task: ${task.title}\n${task.description ?? ""}\n\nDo this step now: ${step.summary}`.trim(),
-    temperature: 0.4,
+    temperature: resolveTemperature(modelId, 0.4),
   });
   return text;
 }

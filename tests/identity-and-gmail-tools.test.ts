@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { profilePatch } from "@/lib/ai/memory-actions";
 import { ESSENTIAL_TOOL_SLUGS } from "@/lib/connectors/composio-session";
 import { inferCapabilitiesFromTools } from "@/lib/connectors/capabilities-shared";
-import { modelCapabilities, isModelCompatible } from "@/lib/ai/providers";
+import { modelCapabilities, isModelCompatible, resolveTemperature } from "@/lib/ai/providers";
 
 describe("profilePatch — identity capture into the always-injected core profile", () => {
   it("captures a name from natural phrasings into display_name + preferred_name", () => {
@@ -70,5 +70,30 @@ describe("model tool-capability routing (action-turn reliability)", () => {
     expect(isModelCompatible("google:gemini-3.5-flash", { tools: true })).toBe(false);
     // Gemini stays usable for non-tool (greeting/simple) turns.
     expect(isModelCompatible("google:gemini-3.5-flash", { streaming: true })).toBe(true);
+  });
+
+  it("does NOT send temperature to Claude 4.x/5.x (they reject it and fail the turn)", () => {
+    // Live regression: claude-opus-4-8 returned "temperature is deprecated for
+    // this model", failing connected-app sends. Modern Claude must be temp-off.
+    for (const id of [
+      "anthropic:claude-opus-4-8",
+      "anthropic:claude-sonnet-5",
+      "anthropic:claude-haiku-4-5-20251001",
+      "anthropic:claude-fable-5",
+    ]) {
+      expect(modelCapabilities(id).temperature, id).toBe(false);
+    }
+    // The older 3.x line still accepts a custom temperature.
+    expect(modelCapabilities("anthropic:claude-3-5-sonnet-latest").temperature).toBe(true);
+  });
+
+  it("resolveTemperature passes the desired value only when the model accepts it, else 1", () => {
+    // Custom-temperature models get the caller's value.
+    expect(resolveTemperature("anthropic:claude-3-5-sonnet-latest", 0.2)).toBe(0.2);
+    expect(resolveTemperature("openai:gpt-4o", 0.5)).toBe(0.5);
+    // Extended-thinking models must get 1 (the SDK would otherwise force a
+    // rejected 0): Claude 4.x/5.x and GPT-5/o-series.
+    expect(resolveTemperature("anthropic:claude-opus-4-8", 0.2)).toBe(1);
+    expect(resolveTemperature("openai:gpt-5.6", 0.5)).toBe(1);
   });
 });

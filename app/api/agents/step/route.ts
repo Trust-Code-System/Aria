@@ -4,7 +4,7 @@ import { requireSessionApi } from "@/lib/auth/guards";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { apiError, apiOk } from "@/lib/api";
 import { AppError } from "@/lib/errors";
-import { getChatModel, resolveUsableChatModelId } from "@/lib/ai/providers";
+import { getChatModel, resolveUsableChatModelId, resolveTemperature } from "@/lib/ai/providers";
 import {
   pipelineSystem,
   pipelinePrompt,
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         model,
         system: pipelineSystem(def),
         prompt: pipelinePrompt(run.input, prior?.name ?? null, prior?.output ?? null),
-        temperature: 0.5,
+        temperature: resolveTemperature(modelId, 0.5),
       });
 
       steps.push({ name: def.name, key: def.key, outputLabel: def.outputLabel, output: text });
@@ -76,14 +76,14 @@ export async function POST(req: Request) {
       model,
       system: LOOP_MAKER_SYSTEM,
       prompt: makerPrompt(run.input, criteria, priorDraft, weakest),
-      temperature: 0.5,
+      temperature: resolveTemperature(modelId, 0.5),
     });
 
     const checker = await generateText({
       model,
       system: LOOP_CHECKER_SYSTEM,
       prompt: checkerPrompt(run.input, criteria, maker.text),
-      temperature: 0.1,
+      temperature: resolveTemperature(modelId, 0.1),
     });
     const verdict = parseVerdict(checker.text, criteria);
 
