@@ -1,5 +1,37 @@
 # Aria verification report
 
+## 2026-07-23 — Provider reachability + live-send readiness (P1/P2)
+
+Owner chose to build the reachability ping and to do the live Gmail send.
+
+- **Reachability probe finding (live this session).** A minimal per-provider
+  probe run against the owner's real keys: **Anthropic reachable (200)**, OpenAI
+  `429 insufficient_quota`, Google/Gemini `429 RESOURCE_EXHAUSTED`. This is the
+  concrete cause of the original failed email — and it is now **resolved on the
+  provider Aria prefers for tool turns** (routing prefers `anthropic:claude-opus-4-8`).
+  So a live send can complete at the model step again.
+- **Reachability in Settings.** Admin-only control (`/api/providers/reachability`)
+  issues a live minimal call per configured provider and reports reachable /
+  rate-limited (over quota) / auth-failed / unreachable, and warns when no
+  tool-capable provider is up. Not credits-remaining (providers don't expose
+  that). `lib/ai/reachability.ts`, `components/settings/provider-reachability.tsx`.
+- **Live-send readiness confirmed.** Gmail is genuinely connected
+  (`status=connected`, validated 2026-07-23 11:37 UTC, workspace `585df16e`);
+  app runs locally; Anthropic quota available. The actual authenticated send +
+  approval is owner-driven (Claude cannot log in as the owner or approve an
+  irreversible outward send); receipt verification pending the owner running it.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 22 files, 174 tests (+6 reachability). |
+| `npm run build` | Compiled successfully (`/api/providers/reachability`, `/settings`). |
+| Endpoint auth gate | `GET /api/providers/reachability` → 401 unauthenticated (admin-gated). |
+
+Process note: running `npm run build` while `next dev` was live corrupted the
+dev server's `.next` (the known port-3000 gotcha); recovered by stopping the
+server, deleting `.next`, and restarting clean (`/` and `/login` back to 200).
+
 ## 2026-07-23 — RLS cross-user isolation guard (P2)
 
 Aria's tenant boundary is entirely Row Level Security (`is_workspace_member`).

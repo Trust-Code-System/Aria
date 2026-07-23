@@ -7,6 +7,7 @@ import { researchProviderAvailable } from "@/lib/ai/research";
 import { TOOL_REGISTRY } from "@/lib/ai/tools";
 import { CheckCircle2, XCircle, ShieldAlert, Lock } from "lucide-react";
 import { PrivacyControls } from "@/components/settings/privacy-controls";
+import { ProviderReachability } from "@/components/settings/provider-reachability";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -108,6 +109,7 @@ export default async function SettingsPage() {
             <StatusRow label="Google Generative AI" ok={providers.google} />
             <StatusRow label="Perplexity" ok={providers.perplexity} />
           </div>
+          {ctx.isAdmin && <ProviderReachability />}
         </Card>
 
         <Card className="p-5">
