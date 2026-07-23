@@ -12,6 +12,7 @@ import {
   verifyChatToolLock,
   buildActionReceipt,
 } from "@/lib/connectors/chat-approval";
+import { toolkitsForIntent, PROVIDER_TO_TOOLKIT } from "@/lib/connectors/composio-session";
 
 describe("chat intent routing", () => {
   it("classifies greetings as instant and skips tools/memory suggest", () => {
@@ -35,6 +36,29 @@ describe("chat intent routing", () => {
   it("keeps knowledge/research modes authoritative", () => {
     expect(classifyChatIntent({ mode: "knowledge", message: "Hi" })).toBe("knowledge");
     expect(classifyChatIntent({ mode: "research", message: "war in 1950" })).toBe("research");
+  });
+});
+
+describe("connector toolkit routing", () => {
+  it("routes named apps to their Composio toolkits", () => {
+    expect(toolkitsForIntent("action", "update my google sheet with Q3 numbers")).toContain("googlesheets");
+    expect(toolkitsForIntent("action", "add a todoist task to call the client")).toContain("todoist");
+    expect(toolkitsForIntent("action", "log this deal in salesforce")).toContain("salesforce");
+    expect(toolkitsForIntent("action", "post an update in our discord")).toContain("discord");
+    expect(toolkitsForIntent("action", "find that report in dropbox")).toContain("dropbox");
+    expect(toolkitsForIntent("action", "send a whatsapp to the team")).toContain("whatsapp");
+    expect(toolkitsForIntent("action", "draft a tweet about the launch")).toContain("twitter");
+    expect(toolkitsForIntent("action", "post to our telegram channel")).toContain("telegram");
+  });
+
+  it("maps every connectable provider to a toolkit", () => {
+    for (const p of [
+      "asana", "hubspot", "salesforce", "outlook",
+      "google_sheets", "google_docs", "dropbox", "airtable", "todoist", "discord",
+      "twitter", "whatsapp", "telegram",
+    ]) {
+      expect(PROVIDER_TO_TOOLKIT[p], p).toBeTruthy();
+    }
   });
 });
 

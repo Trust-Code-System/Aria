@@ -59,6 +59,15 @@ const APPS: IntegrationApp[] = [
   { provider: "hubspot", name: "HubSpot", logo: "H", logoUrl: "https://cdn.simpleicons.org/hubspot", category: "CRM", accent: "#ff7a59", desc: "Review contacts, deals, notes, and customer follow-ups." },
   { provider: "salesforce", name: "Salesforce", logo: "SF", logoUrl: "https://api.iconify.design/logos:salesforce.svg", category: "CRM", accent: "#00a1e0", desc: "Bring account, opportunity, and pipeline context into Aria." },
   { provider: "outlook", name: "Outlook", logo: "O", logoUrl: "https://api.iconify.design/simple-icons:microsoftoutlook.svg", category: "Email", accent: "#0078d4", desc: "Triage Microsoft mail and prepare confirmed replies." },
+  { provider: "google_sheets", name: "Google Sheets", logo: "GS", logoUrl: "https://cdn.simpleicons.org/googlesheets", category: "Spreadsheets", accent: "#0f9d58", desc: "Read, analyze, and update spreadsheet data." },
+  { provider: "google_docs", name: "Google Docs", logo: "GD", logoUrl: "https://cdn.simpleicons.org/googledocs", category: "Documents", accent: "#4285f4", desc: "Read, draft, and revise documents." },
+  { provider: "dropbox", name: "Dropbox", logo: "DB", logoUrl: "https://cdn.simpleicons.org/dropbox", category: "Files", accent: "#0061ff", desc: "Search and reference files stored in Dropbox." },
+  { provider: "airtable", name: "Airtable", logo: "AT", logoUrl: "https://cdn.simpleicons.org/airtable", category: "Database", accent: "#fcb400", desc: "Query and update records across your bases." },
+  { provider: "todoist", name: "Todoist", logo: "TD", logoUrl: "https://cdn.simpleicons.org/todoist", category: "Tasks", accent: "#e44332", desc: "Capture, organize, and complete to-dos." },
+  { provider: "discord", name: "Discord", logo: "DC", logoUrl: "https://cdn.simpleicons.org/discord", category: "Team chat", accent: "#5865f2", desc: "Summarize channels and prepare messages." },
+  { provider: "twitter", name: "X (Twitter)", logo: "X", logoUrl: "https://cdn.simpleicons.org/x", category: "Social", accent: "#111827", desc: "Draft posts and pull mentions — posting always asks first." },
+  { provider: "whatsapp", name: "WhatsApp", logo: "WA", logoUrl: "https://cdn.simpleicons.org/whatsapp", category: "Messaging", accent: "#25d366", desc: "Prepare messages and read recent chats." },
+  { provider: "telegram", name: "Telegram", logo: "TG", logoUrl: "https://cdn.simpleicons.org/telegram", category: "Messaging", accent: "#26a5e4", desc: "Send updates and read channels — sending asks first." },
 ];
 
 export function ConnectionsClient({

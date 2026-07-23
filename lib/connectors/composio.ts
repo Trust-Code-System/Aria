@@ -169,6 +169,15 @@ export function authConfigIdFor(provider: string): string {
     hubspot: env.composioHubspotAuthConfigId,
     salesforce: env.composioSalesforceAuthConfigId,
     outlook: env.composioOutlookAuthConfigId,
+    google_sheets: env.composioGoogleSheetsAuthConfigId,
+    google_docs: env.composioGoogleDocsAuthConfigId,
+    dropbox: env.composioDropboxAuthConfigId,
+    airtable: env.composioAirtableAuthConfigId,
+    todoist: env.composioTodoistAuthConfigId,
+    discord: env.composioDiscordAuthConfigId,
+    twitter: env.composioTwitterAuthConfigId,
+    whatsapp: env.composioWhatsappAuthConfigId,
+    telegram: env.composioTelegramAuthConfigId,
   };
   return map[provider] ?? "";
 }

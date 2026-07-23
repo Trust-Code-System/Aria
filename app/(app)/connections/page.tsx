@@ -48,6 +48,15 @@ export default async function ConnectionsPage() {
           hubspot: Boolean(env.composioHubspotAuthConfigId),
           salesforce: Boolean(env.composioSalesforceAuthConfigId),
           outlook: Boolean(env.composioOutlookAuthConfigId),
+          google_sheets: Boolean(env.composioGoogleSheetsAuthConfigId),
+          google_docs: Boolean(env.composioGoogleDocsAuthConfigId),
+          dropbox: Boolean(env.composioDropboxAuthConfigId),
+          airtable: Boolean(env.composioAirtableAuthConfigId),
+          todoist: Boolean(env.composioTodoistAuthConfigId),
+          discord: Boolean(env.composioDiscordAuthConfigId),
+          twitter: Boolean(env.composioTwitterAuthConfigId),
+          whatsapp: Boolean(env.composioWhatsappAuthConfigId),
+          telegram: Boolean(env.composioTelegramAuthConfigId),
         }}
         initial={initial}
       />

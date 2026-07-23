@@ -1,5 +1,35 @@
 # Aria verification report
 
+## 2026-07-23 — Connector catalog expansion (9 new apps) + 4 wired for chat use
+
+Grew the Connections catalog from 13 to **22 apps**, and fixed 4 that could be
+connected but not used.
+
+- **Wired for chat use:** `asana`, `hubspot`, `salesforce`, `outlook` had auth
+  configs and appeared in the catalog but were missing from `AriaToolkit` /
+  `PROVIDER_TO_TOOLKIT` / `toolkitsForIntent`, so Aria could OAuth them but never
+  load their tools in a turn. Added all three mappings — now usable.
+- **New catalog apps (fully wired, ready to activate):** Google Sheets, Google
+  Docs, Dropbox, Airtable, Todoist, Discord, X (Twitter), WhatsApp, Telegram.
+  Each has an env field, `authConfigIdFor` mapping, `configuredProviders` flag,
+  catalog card, toolkit mapping, and intent routing. They render as "Setup
+  incomplete → Add auth config" until the owner pastes the matching
+  `COMPOSIO_<APP>_AUTH_CONFIG_ID` from the Composio dashboard (documented in
+  `.env.example`).
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 22 files, 178 tests (+2 toolkit-routing). |
+| `npm run build` | Compiled successfully. |
+| Live `/connections` | 22 cards render; 9 new show the correct "Setup incomplete" state with logos. |
+
+**Owner action to activate a new app:** create its auth config in Composio, set
+the `COMPOSIO_<APP>_AUTH_CONFIG_ID` env var, restart. Note: new apps load tools
+via Composio discovery (no curated `ESSENTIAL_TOOL_SLUGS` yet), so a late-
+alphabet write action could be truncated — add essential slugs if a key action
+is missing, as was done for Gmail/Calendar.
+
 ## 2026-07-23 — Full-app verification sweep + chat render bugs (P1)
 
 A "verify everything works" pass. Static: `typecheck` clean, `lint` clean (only

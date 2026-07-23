@@ -41,7 +41,20 @@ export type AriaToolkit =
   | "github"
   | "linear"
   | "jira"
-  | "trello";
+  | "trello"
+  | "asana"
+  | "hubspot"
+  | "salesforce"
+  | "outlook"
+  | "googlesheets"
+  | "googledocs"
+  | "dropbox"
+  | "airtable"
+  | "todoist"
+  | "discord"
+  | "twitter"
+  | "whatsapp"
+  | "telegram";
 
 /** Map Aria connection provider keys → Composio toolkit slugs. */
 export const PROVIDER_TO_TOOLKIT: Record<string, AriaToolkit> = {
@@ -54,6 +67,19 @@ export const PROVIDER_TO_TOOLKIT: Record<string, AriaToolkit> = {
   linear: "linear",
   jira: "jira",
   trello: "trello",
+  asana: "asana",
+  hubspot: "hubspot",
+  salesforce: "salesforce",
+  outlook: "outlook",
+  google_sheets: "googlesheets",
+  google_docs: "googledocs",
+  dropbox: "dropbox",
+  airtable: "airtable",
+  todoist: "todoist",
+  discord: "discord",
+  twitter: "twitter",
+  whatsapp: "whatsapp",
+  telegram: "telegram",
 };
 
 const TOOLKIT_TO_PROVIDER: Record<string, string> = Object.fromEntries(
@@ -134,6 +160,19 @@ export function toolkitsForIntent(intent: ChatIntent, message: string): AriaTool
   if (/\blinear\b/.test(text)) selected.add("linear");
   if (/\bjira\b/.test(text)) selected.add("jira");
   if (/\btrello\b/.test(text)) selected.add("trello");
+  if (/\basana\b/.test(text)) selected.add("asana");
+  if (/\b(hubspot|crm)\b/.test(text)) selected.add("hubspot");
+  if (/\bsalesforce\b/.test(text)) selected.add("salesforce");
+  if (/\boutlook\b/.test(text)) selected.add("outlook");
+  if (/\b(google sheet|spreadsheet|sheets?)\b/.test(text)) selected.add("googlesheets");
+  if (/\b(google doc|docs?)\b/.test(text)) selected.add("googledocs");
+  if (/\bdropbox\b/.test(text)) selected.add("dropbox");
+  if (/\bairtable\b/.test(text)) selected.add("airtable");
+  if (/\btodoist\b/.test(text)) selected.add("todoist");
+  if (/\bdiscord\b/.test(text)) selected.add("discord");
+  if (/\b(twitter|tweet|post on x)\b/.test(text)) selected.add("twitter");
+  if (/\bwhatsapp\b/.test(text)) selected.add("whatsapp");
+  if (/\btelegram\b/.test(text)) selected.add("telegram");
 
   // Generic "send it" / action without app name → Gmail when connected later filtered.
   if (selected.size === 0 && intent === "action") {
