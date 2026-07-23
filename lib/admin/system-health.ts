@@ -10,6 +10,49 @@ export interface HealthCheck {
   detail: string;
 }
 
+/** Window over which recent memory-pipeline errors are surfaced as a warning. */
+export const MEMORY_ERROR_WINDOW_MS = 24 * 60 * 60_000;
+
+/**
+ * Pure: a warning when the memory pipeline logged real (non-validation) errors
+ * recently. Memory-suggestion failures are deliberately swallowed in the chat
+ * path (chat must never break because suggestion failed), so without this they
+ * are invisible — a suggestion model that is silently failing looks identical to
+ * "nothing worth remembering". Surfacing the count makes that state observable.
+ */
+export function memoryErrorsCheck(
+  count: number,
+  windowMs: number = MEMORY_ERROR_WINDOW_MS,
+): HealthCheck | null {
+  if (count <= 0) return null;
+  const hours = Math.round(windowMs / 3_600_000);
+  return {
+    name: "Memory pipeline errors",
+    level: "warning",
+    detail: `${count} memory save/suggestion error(s) logged in the last ${hours}h (suggestion failures are silent in chat). See error_logs where feature_area = 'memory'.`,
+  };
+}
+
+/**
+ * Count genuine (non-validation) memory-pipeline errors in the recent window.
+ * Validation errors are benign user input ("which memory?"), not silent
+ * failures, so they are excluded to keep this signal actionable.
+ */
+export async function countRecentMemoryErrors(
+  admin: SupabaseClient,
+  now: number = Date.now(),
+  windowMs: number = MEMORY_ERROR_WINDOW_MS,
+): Promise<number> {
+  const since = new Date(now - windowMs).toISOString();
+  const { count } = await admin
+    .from("error_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("feature_area", "memory")
+    .neq("category", "validation")
+    .gte("created_at", since);
+  return count ?? 0;
+}
+
 export async function getSystemHealth(admin: SupabaseClient): Promise<{
   level: HealthLevel;
   checks: HealthCheck[];
@@ -61,7 +104,7 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
   );
 
   const stuckCutoff = stuckTurnCutoffIso();
-  const [messageState, eventsTable, receiptsTable, failedTurns, pendingApprovals, failedReceipts, stuckTurns] = await Promise.all([
+  const [messageState, eventsTable, receiptsTable, failedTurns, pendingApprovals, failedReceipts, stuckTurns, memoryErrors] = await Promise.all([
     admin.from("messages").select("id, status, idempotency_key, trace_id").limit(1),
     admin.from("message_events").select("id").limit(1),
     admin.from("action_receipts").select("id").limit(1),
@@ -74,6 +117,7 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
       .eq("role", "assistant")
       .in("status", ["pending", "streaming"])
       .lt("updated_at", stuckCutoff),
+    countRecentMemoryErrors(admin),
   ]);
   const migrationReady = !messageState.error && !eventsTable.error && !receiptsTable.error;
   checks.push(
@@ -87,6 +131,7 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
     pendingApprovals: pendingApprovals.count ?? 0,
     failedReceipts: failedReceipts.count ?? 0,
     stuckTurns: stuckTurns.count ?? 0,
+    memoryErrors: typeof memoryErrors === "number" ? memoryErrors : 0,
   };
   if (metrics.failedTurns > 0) {
     checks.push({ name: "Failed chat turns", level: "warning", detail: `${metrics.failedTurns} failed turn(s) require review.` });
@@ -97,6 +142,8 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
   if (metrics.failedReceipts > 0) {
     checks.push({ name: "Failed app actions", level: "warning", detail: `${metrics.failedReceipts} verified execution failure(s) are recorded.` });
   }
+  const memoryCheck = memoryErrorsCheck(metrics.memoryErrors);
+  if (memoryCheck) checks.push(memoryCheck);
 
   const level: HealthLevel = checks.some((check) => check.level === "critical")
     ? "critical"

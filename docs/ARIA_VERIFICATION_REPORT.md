@@ -1,5 +1,29 @@
 # Aria verification report
 
+## 2026-07-23 — Memory-failure observability (P2)
+
+Memory-suggestion failures are swallowed in the chat path by design (chat must
+not break when the suggestion model fails), which made a silently-failing
+suggestion model indistinguishable from "nothing worth remembering". Those
+failures are already written to `error_logs` (feature_area `memory`); they were
+just never surfaced.
+
+- **System-health now surfaces recent memory-pipeline errors.** `getSystemHealth`
+  counts non-validation `error_logs` rows with feature_area `memory` in the last
+  24h into a `memoryErrors` metric and raises a "Memory pipeline errors" warning
+  when > 0. Validation errors (benign user input) are excluded to keep the signal
+  actionable. `lib/admin/system-health.ts`.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 20 files, 164 tests (+4 memory-health). |
+| `npm run build` | Passed. |
+
+Not verified this session: the 24h count query against the live DB. The pure
+check (`memoryErrorsCheck`) is unit-tested; the DB count follows the same
+untested-integration pattern as the module's other health counts.
+
 ## 2026-07-23 — Connector health, e2e-in-CI, quota honesty (P1 continuation)
 
 Owner confirmed the memory fix works live (screenshot: "I prefer concise replies" saved, source `explicit_chat_command`).
