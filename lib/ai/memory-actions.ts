@@ -84,6 +84,8 @@ export async function executeExplicitMemoryCommand(params: {
   command: ExplicitMemoryCommand;
   userMessage: string;
   attachmentText?: string;
+  /** The recent turn content a referential "save this" points at. */
+  referenceText?: string;
 }): Promise<{ text: string; events: ChatStreamEvent[] }> {
   const { command } = params;
   if (command.kind === "recall") {
@@ -165,7 +167,24 @@ export async function executeExplicitMemoryCommand(params: {
     };
   }
 
-  const content = command.content.trim();
+  // Resolve the fact to store. Inline saves carry their own content; a
+  // referential "save this to memory" pulls it from the recent turn.
+  let content: string;
+  let update = false;
+  if (command.kind === "save_reference") {
+    const referent = (params.referenceText ?? "").trim().replace(/\s+/g, " ");
+    if (!referent) {
+      return {
+        text: "There's nothing recent for me to save yet. Tell me the fact, for example: “remember that I prefer concise replies.”",
+        events: [],
+      };
+    }
+    content = referent.slice(0, 500);
+  } else {
+    content = command.content.trim();
+    update = command.update;
+  }
+
   if (looksLikeSecret(content)) {
     throw new AppError({
       area: "memory",
@@ -231,7 +250,7 @@ export async function executeExplicitMemoryCommand(params: {
     throw new AppError({ area: "memory", category: "internal", userMessage: "I could not save that memory.", internal: error });
   }
 
-  if (command.update) {
+  if (update) {
     const { data: superseded } = await params.supabase
       .from("memories")
       .select("id")

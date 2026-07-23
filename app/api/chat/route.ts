@@ -147,6 +147,22 @@ export async function POST(req: Request) {
         ?.filter((item) => item.kind === "document" && item.text)
         .map((item) => `[${item.name}]\n${item.text}`)
         .join("\n\n");
+      // A referential "save this to memory" points at the most recent assistant
+      // reply; resolve it here so the save stores the real content, not "this".
+      let referenceText: string | undefined;
+      if (explicitMemory.kind === "save_reference") {
+        const { data: prior } = await supabase
+          .from("messages")
+          .select("content")
+          .eq("conversation_id", conversationId)
+          .eq("role", "assistant")
+          .eq("status", "completed")
+          .neq("id", assistantMessageId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        referenceText = prior?.content?.trim() || undefined;
+      }
       const memoryResult = await executeExplicitMemoryCommand({
         supabase,
         workspaceId: ctx.workspaceId,
@@ -157,6 +173,7 @@ export async function POST(req: Request) {
         command: explicitMemory,
         userMessage: turn.message,
         attachmentText,
+        referenceText,
       });
       await completeAssistantMessage({
         supabase,

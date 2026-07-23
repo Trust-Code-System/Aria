@@ -1,8 +1,14 @@
 export type ExplicitMemoryCommand =
   | { kind: "save"; content: string; update: boolean }
+  | { kind: "save_reference" }
   | { kind: "forget"; query: string }
   | { kind: "recall" }
   | { kind: "extract_attachment" };
+
+/** Trailing text that carries no fact of its own — it just names the memory
+ * store ("save this TO MEMORY") or points at earlier content ("save THIS"). */
+const FILLER_ONLY_RE =
+  /^(?:to|in|into|for)?\s*(?:my\s+)?(?:memory|mind|later|reference|this|that|it)$/i;
 
 const clean = (value: string) =>
   value
@@ -60,12 +66,23 @@ export function recognizeMemoryCommand(
     };
   }
 
+  // Referential save: "save this to memory", "remember this", "save that",
+  // "keep this in mind" — no inline fact, so the referent is the recent turn.
+  const reference = text.match(
+    /^(?:please\s+)?(?:remember|save|store|keep|add|note)\s+(?:this|that)(?:\s+(?:to|in|into|for)\s+(?:my\s+)?(?:memory|mind|later|reference))?\s*$/i,
+  );
+  if (reference) return { kind: "save_reference" };
+
   const save = text.match(
     /^(?:please\s+)?(?:remember(?: that)?|add (?:this|that) to memory|save (?:this|that)(?: as (?:a )?(?:preference|memory))?|store (?:this|that)|keep (?:this|that) in mind|learn this about me)\s*[:,-]?\s*(.+)$/i,
   );
   if (!save) return null;
   const content = clean(save[1]);
-  return content ? { kind: "save", content, update: false } : null;
+  if (!content) return null;
+  // Backstop: the captured tail is pure filler ("...to memory") — the user is
+  // pointing at earlier content, not stating a new fact inline.
+  if (FILLER_ONLY_RE.test(content)) return { kind: "save_reference" };
+  return { kind: "save", content, update: false };
 }
 
 export function looksLikeDurablePersonalStatement(message: string): boolean {
