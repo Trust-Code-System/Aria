@@ -15,6 +15,7 @@ import { startDictation, speechRecognitionSupported } from "@/lib/voice/speech";
 import { haptic } from "@/lib/ui/haptics";
 import { cn } from "@/lib/utils";
 import { parseChatStreamLine, type ChatStreamEvent } from "@/lib/chat/stream-protocol";
+import { findLatestActiveTurnId } from "@/lib/chat/thinking-indicator";
 
 interface ChatProps {
   conversationId?: string;
@@ -38,6 +39,7 @@ interface PendingAttachment {
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_ATTACHMENTS = 6;
+const TURN_VISUAL_TIMEOUT_MS = 65_000;
 
 export function Chat({
   conversationId,
@@ -52,6 +54,9 @@ export function Chat({
   const [input, setInput] = React.useState("");
   const [mode, setMode] = React.useState<Mode>(initialMode);
   const [streaming, setStreaming] = React.useState(false);
+  const [activeTurnId, setActiveTurnId] = React.useState<string | null>(() =>
+    findLatestActiveTurnId(initialMessages),
+  );
   const [convId, setConvId] = React.useState<string | undefined>(conversationId);
   const [attachments, setAttachments] = React.useState<PendingAttachment[]>([]);
   const [listening, setListening] = React.useState(false);
@@ -91,6 +96,25 @@ export function Chat({
     },
     [],
   );
+
+  // A refreshed page can hydrate a durable pending turn after its original
+  // stream disconnected. Reconcile it with server state, but never animate it
+  // indefinitely if the status cannot be confirmed.
+  React.useEffect(() => {
+    if (!activeTurnId || inFlightRef.current) return;
+    const refresh = window.setInterval(() => router.refresh(), 2_500);
+    const timeout = window.setTimeout(() => setActiveTurnId(null), TURN_VISUAL_TIMEOUT_MS);
+    return () => {
+      window.clearInterval(refresh);
+      window.clearTimeout(timeout);
+    };
+  }, [activeTurnId, router]);
+
+  React.useEffect(() => {
+    if (inFlightRef.current) return;
+    setMessages(initialMessages);
+    setActiveTurnId(findLatestActiveTurnId(initialMessages));
+  }, [initialMessages]);
 
   // ---- Attachments ----------------------------------------------------------
   const readyAttachments = attachments.filter((a) => a.status === "ready");
@@ -248,6 +272,7 @@ export function Chat({
     );
     const userMessage: ChatMessage = {
       id: `u_${crypto.randomUUID()}`,
+      turnId: crypto.randomUUID(),
       role: "user",
       content: text,
       attachments: displayAttachments.length ? displayAttachments : undefined,
@@ -255,6 +280,7 @@ export function Chat({
     };
     const assistantMessage: ChatMessage = {
       id: `a_${crypto.randomUUID()}`,
+      turnId: userMessage.turnId,
       role: "assistant",
       content: "",
       pending: true,
@@ -268,6 +294,7 @@ export function Chat({
       payloadAttachments,
       userMessage,
       assistantMessage,
+      turnId: userMessage.turnId!,
     });
   }
 
@@ -290,6 +317,7 @@ export function Chat({
       payloadAttachments: userMessage.requestAttachments ?? [],
       userMessage,
       assistantMessage: message,
+      turnId: crypto.randomUUID(),
       retryAssistantMessageId: message.id,
     });
   }
@@ -299,13 +327,20 @@ export function Chat({
     payloadAttachments: NonNullable<ChatMessage["requestAttachments"]>;
     userMessage: ChatMessage;
     assistantMessage: ChatMessage;
+    turnId: string;
     retryAssistantMessageId?: string;
   }) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setStreaming(true);
+    setActiveTurnId(params.turnId);
     const controller = new AbortController();
     abortRef.current = controller;
+    let clientTimedOut = false;
+    const visualTimeout = window.setTimeout(() => {
+      clientTimedOut = true;
+      controller.abort();
+    }, TURN_VISUAL_TIMEOUT_MS);
     const clientAssistantId = params.assistantMessage.id;
     let assistantMessageId = clientAssistantId;
     let accumulated = "";
@@ -315,7 +350,7 @@ export function Chat({
 
     if (params.retryAssistantMessageId) {
       setMessages((current) => current.map((item) => item.id === clientAssistantId
-        ? { ...item, content: "", pending: true, status: "pending", errorCode: null, errorMessage: null, traceId: null, events: [] }
+        ? { ...item, turnId: params.turnId, content: "", pending: true, status: "pending", errorCode: null, errorMessage: null, traceId: null, events: [] }
         : item));
     } else {
       setMessages((current) => [...current, params.userMessage, params.assistantMessage]);
@@ -330,7 +365,7 @@ export function Chat({
           projectId,
           mode,
           message: params.text,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: params.turnId,
           retryAssistantMessageId: params.retryAssistantMessageId,
           attachments: params.payloadAttachments.length ? params.payloadAttachments : undefined,
         }),
@@ -384,8 +419,10 @@ export function Chat({
         router.refresh();
       }
     } catch (cause) {
-      const cancelled = controller.signal.aborted;
-      const failureMessage = cancelled
+      const cancelled = controller.signal.aborted && !clientTimedOut;
+      const failureMessage = clientTimedOut
+        ? "This response timed out. Nothing was sent by any pending connected-app action."
+        : cancelled
         ? "This response was cancelled. Nothing was sent by any pending connected-app action."
         : cause instanceof Error
           ? cause.message
@@ -397,7 +434,7 @@ export function Chat({
             content: accumulated || failureMessage,
             pending: false,
             status: cancelled ? "cancelled" : "failed",
-            errorCode: terminalError?.code ?? (cancelled ? "cancelled" : "network_error"),
+            errorCode: terminalError?.code ?? (clientTimedOut ? "request_timed_out" : cancelled ? "cancelled" : "network_error"),
             errorMessage: terminalError?.message ?? failureMessage,
             traceId: terminalError?.traceId ?? null,
             events: streamEvents,
@@ -405,13 +442,15 @@ export function Chat({
         : item));
       if (!cancelled) toastError("Chat failed", failureMessage);
     } finally {
+      window.clearTimeout(visualTimeout);
       inFlightRef.current = false;
       abortRef.current = null;
       setStreaming(false);
+      setActiveTurnId((current) => (current === params.turnId ? null : current));
     }
 
     function handleEvent(event: ChatStreamEvent | null) {
-      if (!event) return;
+      if (!event || event.turnId !== params.turnId) return;
       if (event.type === "turn_started") {
         assistantMessageId = event.messageId;
         terminalStatus = "streaming";
@@ -420,11 +459,16 @@ export function Chat({
       } else if (event.type === "error") {
         terminalError = event;
         terminalStatus = event.status;
+        setActiveTurnId((current) => (current === params.turnId ? null : current));
       } else if (event.type === "done") {
         terminalStatus = event.status;
         assistantMessageId = event.messageId;
+        setActiveTurnId((current) => (current === params.turnId ? null : current));
       } else {
         streamEvents = [...streamEvents, event];
+        if (event.type === "approval") {
+          setActiveTurnId((current) => (current === params.turnId ? null : current));
+        }
       }
       setMessages((current) => current.map((item) => item.id === clientAssistantId
         ? { ...item, content: accumulated, pending: terminalStatus === "pending" || terminalStatus === "streaming", status: terminalStatus, events: streamEvents }
@@ -501,6 +545,8 @@ export function Chat({
                 <MessageItem
                   key={m.id}
                   message={m}
+                  activeTurnId={activeTurnId}
+                  thinkingMode={mode}
                   onSaveReport={m.role === "assistant" ? saveReport : undefined}
                   onRetry={m.role === "assistant" ? retry : undefined}
                 />

@@ -44,3 +44,4 @@ next-env.d.ts
 # Ignore local VS Code/Codacy AI rules
 .github/instructions/codacy.instructions.md
 .next-build/
+test-results/

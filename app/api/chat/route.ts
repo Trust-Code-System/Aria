@@ -117,6 +117,7 @@ export async function POST(req: Request) {
         return completedReplayResponse(
           conversationId,
           turn.assistantMessageId,
+          body.idempotencyKey,
           turn.duplicateContent ?? "",
         );
       }
@@ -151,6 +152,7 @@ export async function POST(req: Request) {
         workspaceId: ctx.workspaceId,
         userId: ctx.userId,
         projectId: body.projectId ?? null,
+        turnId: body.idempotencyKey,
         sourceMessageId: turn.userMessageId,
         command: explicitMemory,
         userMessage: turn.message,
@@ -176,6 +178,7 @@ export async function POST(req: Request) {
       return eventListResponse({
         conversationId,
         messageId: assistantMessageId,
+        turnId: body.idempotencyKey,
         text: memoryResult.text,
         events: memoryResult.events,
       });
@@ -659,6 +662,7 @@ async function runAgentStream(
   };
   safeEnqueue({
     type: "turn_started",
+    turnId: params.body.idempotencyKey,
     conversationId: params.conversationId,
     messageId: params.assistantMessageId,
   });
@@ -714,7 +718,11 @@ async function runAgentStream(
           if (part.type === "text-delta") {
             emittedProviderOutput = true;
             accumulated += part.textDelta;
-            safeEnqueue({ type: "text_delta", delta: part.textDelta });
+            safeEnqueue({
+              type: "text_delta",
+              turnId: params.body.idempotencyKey,
+              delta: part.textDelta,
+            });
           } else if (part.type === "tool-call") {
             toolActivity = true;
             toolCalls += 1;
@@ -740,6 +748,7 @@ async function runAgentStream(
             if (isApproval) {
               const event: ChatStreamEvent = {
                 type: "approval",
+                turnId: params.body.idempotencyKey,
                 approvalId: String(resultValue.approvalId),
                 toolName: part.toolName,
                 summary:
@@ -777,7 +786,11 @@ async function runAgentStream(
 
         if (!accumulated.trim() && uiEvents.some((event) => event.type === "approval")) {
           accumulated = "I prepared the connected-app action for your approval. Nothing has been sent or changed yet.";
-          safeEnqueue({ type: "text_delta", delta: accumulated });
+          safeEnqueue({
+            type: "text_delta",
+            turnId: params.body.idempotencyKey,
+            delta: accumulated,
+          });
         }
         if (!accumulated.trim()) throw new Error("The model returned an empty response.");
 
@@ -815,6 +828,7 @@ async function runAgentStream(
           for (const suggestion of suggestions.suggestions) {
             const event: ChatStreamEvent = {
               type: "memory_suggestion",
+              turnId: params.body.idempotencyKey,
               memoryId: suggestion.id,
               content: suggestion.content,
               memoryType: suggestion.type,
@@ -859,6 +873,7 @@ async function runAgentStream(
 
         safeEnqueue({
           type: "done",
+          turnId: params.body.idempotencyKey,
           status: "completed",
           messageId: params.assistantMessageId,
           model: candidate,
@@ -907,6 +922,7 @@ async function runAgentStream(
       .in("status", ["pending", "streaming"]);
     const errorEvent: ChatStreamEvent = {
       type: "error",
+      turnId: params.body.idempotencyKey,
       code: terminal.code,
       message: terminal.userMessage,
       traceId,
@@ -923,6 +939,7 @@ async function runAgentStream(
     });
     safeEnqueue({
       type: "done",
+      turnId: params.body.idempotencyKey,
       status: terminal.status,
       messageId: params.assistantMessageId,
       model: selectedModel,
@@ -1024,14 +1041,25 @@ function responseHeaders(conversationId: string, messageId: string, citations: C
 function eventListResponse(params: {
   conversationId: string;
   messageId: string;
+  turnId: string;
   text: string;
   events: ChatStreamEvent[];
 }) {
   const events: ChatStreamEvent[] = [
-    { type: "turn_started", conversationId: params.conversationId, messageId: params.messageId },
-    { type: "text_delta", delta: params.text },
+    {
+      type: "turn_started",
+      turnId: params.turnId,
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+    },
+    { type: "text_delta", turnId: params.turnId, delta: params.text },
     ...params.events,
-    { type: "done", status: "completed", messageId: params.messageId },
+    {
+      type: "done",
+      turnId: params.turnId,
+      status: "completed",
+      messageId: params.messageId,
+    },
   ];
   return new Response(Buffer.concat(events.map((event) => Buffer.from(encodeChatStreamEvent(event)))), {
     status: 200,
@@ -1039,6 +1067,11 @@ function eventListResponse(params: {
   });
 }
 
-function completedReplayResponse(conversationId: string, messageId: string, content: string) {
-  return eventListResponse({ conversationId, messageId, text: content, events: [] });
+function completedReplayResponse(
+  conversationId: string,
+  messageId: string,
+  turnId: string,
+  content: string,
+) {
+  return eventListResponse({ conversationId, messageId, turnId, text: content, events: [] });
 }

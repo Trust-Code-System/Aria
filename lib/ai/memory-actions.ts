@@ -79,6 +79,7 @@ export async function executeExplicitMemoryCommand(params: {
   workspaceId: string;
   userId: string;
   projectId: string | null;
+  turnId: string;
   sourceMessageId: string;
   command: ExplicitMemoryCommand;
   userMessage: string;
@@ -114,6 +115,7 @@ export async function executeExplicitMemoryCommand(params: {
     });
     const events: ChatStreamEvent[] = outcome.suggestions.map((suggestion) => ({
       type: "memory_suggestion",
+      turnId: params.turnId,
       memoryId: suggestion.id,
       content: suggestion.content,
       memoryType: suggestion.type,
@@ -193,7 +195,14 @@ export async function executeExplicitMemoryCommand(params: {
     }
     return {
       text: `Already saved in memory: “${existing.content}”.`,
-      events: [{ type: "memory_saved", memoryId: existing.id, content: existing.content }],
+      events: [
+        {
+          type: "memory_saved",
+          turnId: params.turnId,
+          memoryId: existing.id,
+          content: existing.content,
+        },
+      ],
     };
   }
 
@@ -249,6 +258,6 @@ export async function executeExplicitMemoryCommand(params: {
 
   return {
     text: `Saved to memory: “${content}”. You can undo this below.`,
-    events: [{ type: "memory_saved", memoryId: inserted.id, content }],
+    events: [{ type: "memory_saved", turnId: params.turnId, memoryId: inserted.id, content }],
   };
 }

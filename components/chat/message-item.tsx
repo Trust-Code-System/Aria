@@ -12,6 +12,11 @@ import { useTypewriter } from "@/components/chat/use-typewriter";
 import { ApprovalCard } from "@/components/chat/approval-card";
 import type { ChatStreamEvent } from "@/lib/chat/stream-protocol";
 import { MemoryEventCard } from "@/components/chat/memory-event-card";
+import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
+import {
+  shouldShowThinkingIndicator,
+  type ThinkingMode,
+} from "@/lib/chat/thinking-indicator";
 
 export interface ChatAttachment {
   kind: "image" | "document";
@@ -29,6 +34,7 @@ export interface ChatRequestAttachment {
 
 export interface ChatMessage {
   id: string;
+  turnId?: string | null;
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
@@ -44,10 +50,14 @@ export interface ChatMessage {
 
 export function MessageItem({
   message,
+  activeTurnId,
+  thinkingMode = "general",
   onSaveReport,
   onRetry,
 }: {
   message: ChatMessage;
+  activeTurnId?: string | null;
+  thinkingMode?: ThinkingMode;
   onSaveReport?: (m: ChatMessage) => void;
   onRetry?: (m: ChatMessage) => void;
 }) {
@@ -57,6 +67,13 @@ export function MessageItem({
   const [speaking, setSpeaking] = React.useState(false);
   const { success, error } = useToast();
   const canSpeak = speechSynthesisSupported();
+  const hasApproval = Boolean(message.events?.some((event) => event.type === "approval"));
+  const showThinking = shouldShowThinkingIndicator({
+    turnId: message.turnId,
+    activeTurnId,
+    status: message.status,
+    hasApproval,
+  });
 
   // Smooth the assistant's streaming text into a steady "typing" animation.
   const typed = useTypewriter(message.content, !!message.pending && !isUser);
@@ -113,14 +130,17 @@ export function MessageItem({
   }
 
   return (
-    <div className="group min-w-0 py-5">
-      {message.pending && !typed.text ? (
-        <TypingDots />
-      ) : (
+    <div className="group min-w-0 py-5" data-turn-id={message.turnId ?? undefined}>
+      {typed.text ? (
         // Append an inline block-cursor glyph while typing so it always sits at the
         // end of the current text (robust across markdown block structure).
         <Markdown content={typed.caret ? typed.text + "▌" : typed.text} />
-      )}
+      ) : null}
+      {showThinking && message.turnId ? (
+        <div className={typed.text ? "mt-2" : undefined}>
+          <ThinkingIndicator turnId={message.turnId} mode={thinkingMode} />
+        </div>
+      ) : null}
       {message.citations && <CitationList citations={message.citations} />}
       {message.events?.map((event, index) => {
         if (event.type === "approval") {
@@ -232,19 +252,5 @@ function IconBtn({
     >
       {children}
     </button>
-  );
-}
-
-function TypingDots() {
-  return (
-    <div className="flex items-center gap-1 py-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50"
-          style={{ animationDelay: `${i * 0.15}s` }}
-        />
-      ))}
-    </div>
   );
 }

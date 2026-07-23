@@ -22,7 +22,7 @@ export default async function ChatByIdPage({ params }: { params: { id: string } 
 
   const { data: rows } = await supabase
     .from("messages")
-    .select("id, role, content, citations, status, error_code, error_message, trace_id, metadata")
+    .select("id, role, content, citations, status, error_code, error_message, trace_id, idempotency_key, metadata")
     .eq("conversation_id", params.id)
     .order("created_at", { ascending: true });
 
@@ -31,6 +31,7 @@ export default async function ChatByIdPage({ params }: { params: { id: string } 
     .filter((r) => r.role === "user" || Boolean(r.content?.trim()) || r.status === "pending" || r.status === "streaming")
     .map((r) => ({
       id: r.id,
+      turnId: r.idempotency_key ?? null,
       role: r.role as "user" | "assistant",
       content: r.content,
       citations: Array.isArray(r.citations) ? (r.citations as any) : [],
