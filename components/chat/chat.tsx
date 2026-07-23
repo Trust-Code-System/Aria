@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, Send, Plus, Mic, Square, X, FileText, Loader2, ListTodo } from "lucide-react";
+import { CornerDownLeft, Send, Plus, Mic, Square, X, FileText, Loader2, ListTodo, Mail, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { MessageItem, type ChatMessage, type ChatAttachment } from "@/components/chat/message-item";
@@ -40,6 +40,25 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_ATTACHMENTS = 6;
 const TURN_VISUAL_TIMEOUT_MS = 65_000;
+
+/**
+ * Quick-start "skills" shown on the empty chat screen (like Claude/ChatGPT
+ * capability cards). Clicking one prefills the composer with a starter prompt
+ * and switches to the mode that best serves it — turning Aria's real
+ * capabilities into one-tap entry points instead of a blank box.
+ */
+const SKILL_SUGGESTIONS: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  hint: string;
+  prompt: string;
+  mode?: Mode;
+}[] = [
+  { icon: Mail, label: "Draft an email", hint: "Compose & send via Gmail", prompt: "Draft an email to " },
+  { icon: Search, label: "Research a topic", hint: "Search the web, with sources", prompt: "Research ", mode: "research" },
+  { icon: FileText, label: "Write a report", hint: "A polished, exportable doc", prompt: "Write a report on ", mode: "report" },
+  { icon: Sparkles, label: "Remember something", hint: "Save a fact to memory", prompt: "Remember that " },
+];
 
 export function Chat({
   conversationId,
@@ -522,8 +541,21 @@ export function Chat({
     }
   }
 
+  /** Prefill the composer from a skill card and jump to its best mode. */
+  function applySuggestion(s: (typeof SKILL_SUGGESTIONS)[number]) {
+    if (s.mode) setMode(s.mode);
+    setInput(s.prompt);
+    haptic();
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.selectionStart = el.selectionEnd = s.prompt.length;
+    });
+  }
+
   const modeHint: Record<Mode, string> = {
-    general: "Ask anything. Aria uses your project context and approved memories.",
+    general: "Draft an email, dig into research, write a report — or just ask. Aria uses your context and memory.",
     knowledge: "Answers come only from your uploaded files, with citations.",
     research: "Aria searches the public web and cites its sources.",
     report: "Aria drafts a polished, exportable document.",
@@ -548,11 +580,31 @@ export function Chat({
             <div className="flex min-h-[54vh] flex-col items-center justify-center px-6 text-center animate-fade-in">
               <BrandMark size={42} />
               <h1 className="mt-5 text-2xl font-semibold tracking-tight">
-                {projectName ? `Chat in ${projectName}` : "How can I help?"}
+                {projectName ? `Chat in ${projectName}` : "What can I get done for you?"}
               </h1>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
                 {modeHint[mode]}
               </p>
+              {!projectName && mode === "general" && (
+                <div className="mt-8 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {SKILL_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => applySuggestion(s)}
+                      className="group flex items-start gap-3 rounded-2xl border border-border bg-card/60 p-3.5 text-left transition hover:border-primary/40 hover:bg-card hover:shadow-sm"
+                    >
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition group-hover:bg-primary/15">
+                        <s.icon className="h-[18px] w-[18px]" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{s.label}</span>
+                        <span className="block text-xs text-muted-foreground">{s.hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-4">
