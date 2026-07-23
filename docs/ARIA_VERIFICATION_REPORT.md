@@ -1,5 +1,23 @@
 # Aria verification report
 
+## 2026-07-23 — Connector health, e2e-in-CI, quota honesty (P1 continuation)
+
+Owner confirmed the memory fix works live (screenshot: "I prefer concise replies" saved, source `explicit_chat_command`).
+
+- **Connector health on every chat turn.** `verifyConnectionHealth` re-checks a connector's live Composio status before its tools are exposed to the model — freshness-gated (10-min cache, no per-turn latency when fresh), fail-open on probe errors (a transient failure never breaks a working connector), and blocks tools + persists the correction only on a definitive expired/revoked/disconnected status. `lib/connectors/health.ts`, wired in `lib/connectors/composio-session.ts`.
+- **Authenticated e2e in CI.** New model-free memory round-trip spec proves the owner's exact flow and self-cleans; `.github/workflows/e2e.yml` runs Playwright against a deployed `E2E_BASE_URL`.
+- **Quota honesty / "add Claude".** Claude is already the primary action model (`routing.ts:143`); the email failure was billing (both tool-capable providers exhausted). The quota error now names OpenAI/Anthropic and explains free Gemini can't run connected-app tools.
+- **Quota in Settings** — skipped (not exposed by providers via API key), per owner.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 19 files, 160 tests (+6 connector-health). |
+| `npm run build` | Passed. |
+| `npx playwright test --list` | 20 specs parse (incl. new memory round-trip). |
+
+Not verified this session (no live gateway/creds): the live Composio probe, and the e2e execution (needs GitHub `E2E_*` secrets).
+
 ## 2026-07-23 — Memory fixes + stuck-turn recovery (P0/P1 continuation)
 
 Migration 0014 was confirmed applied to the live DB by the owner.
