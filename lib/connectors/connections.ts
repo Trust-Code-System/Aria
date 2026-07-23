@@ -17,12 +17,17 @@ export async function getActiveConnection(
   workspaceId: string,
   provider: string,
   supabase?: SupabaseClient,
-): Promise<{ entityId: string; connectedAccountId?: string } | null> {
+): Promise<{
+  entityId: string;
+  connectedAccountId?: string;
+  status?: string | null;
+  lastValidatedAt?: string | null;
+} | null> {
   if (!configured.connectors) return null;
   const client = supabase ?? createServerSupabase();
   const { data } = await client
     .from("connections")
-    .select("status, composio_entity_id, composio_connection_id, user_id")
+    .select("status, composio_entity_id, composio_connection_id, user_id, last_validated_at")
     .eq("workspace_id", workspaceId)
     .eq("provider", provider)
     .maybeSingle();
@@ -30,5 +35,7 @@ export async function getActiveConnection(
   return {
     entityId: data.composio_entity_id ?? data.user_id,
     connectedAccountId: data.composio_connection_id ?? undefined,
+    status: data.status ?? null,
+    lastValidatedAt: data.last_validated_at ?? null,
   };
 }

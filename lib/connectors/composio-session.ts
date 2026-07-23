@@ -21,6 +21,7 @@ import { env, configured } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { createChatToolApproval } from "@/lib/connectors/chat-approval";
 import { getActiveConnection } from "@/lib/connectors/connections";
+import { verifyConnectionHealth } from "@/lib/connectors/health";
 import {
   redactComposioUserId,
   stableComposioUserId,
@@ -152,6 +153,7 @@ export interface ComposioDiag {
   toolkitsRequested: string[];
   toolsReturned: string[];
   connectedAccounts: Record<string, string | null>;
+  blockedToolkits?: string[];
   layer?: string;
   note?: string;
 }
@@ -202,6 +204,7 @@ export async function buildComposioAiSdkTools(params: {
   const composioUserId = stableComposioUserId(params.supabaseUserId);
   const connectedAccounts: Record<string, string | null> = {};
   const usableToolkits: AriaToolkit[] = [];
+  const blockedToolkits: string[] = [];
 
   for (const toolkit of params.toolkits) {
     const provider = TOOLKIT_TO_PROVIDER[toolkit];
@@ -231,6 +234,23 @@ export async function buildComposioAiSdkTools(params: {
         internal: { expected: composioUserId, found: conn.entityId },
       });
     }
+    // Re-verify the connection is live before exposing its tools this turn.
+    // Freshness-gated + fail-open, so a recently-validated or transiently
+    // unreachable connector is never wrongly blocked — but a token revoked or
+    // expired since the last refresh stops its tools from reaching the model.
+    const health = await verifyConnectionHealth({
+      supabase: params.supabase,
+      workspaceId: params.workspaceId,
+      provider,
+      connectedAccountId: conn.connectedAccountId,
+      dbStatus: conn.status,
+      lastValidatedAt: conn.lastValidatedAt,
+    });
+    if (!health.healthy) {
+      connectedAccounts[toolkit] = null;
+      blockedToolkits.push(`${toolkit}:${health.status}`);
+      continue;
+    }
     connectedAccounts[toolkit] = conn.connectedAccountId ?? null;
     usableToolkits.push(toolkit);
   }
@@ -242,6 +262,7 @@ export async function buildComposioAiSdkTools(params: {
     toolkitsRequested: params.toolkits,
     toolsReturned: [],
     connectedAccounts,
+    blockedToolkits: blockedToolkits.length ? blockedToolkits : undefined,
   };
 
   if (usableToolkits.length === 0) {
