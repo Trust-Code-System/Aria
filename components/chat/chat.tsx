@@ -61,6 +61,10 @@ export function Chat({
   const [attachments, setAttachments] = React.useState<PendingAttachment[]>([]);
   const [listening, setListening] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
+  // Feature-detected, client-only UI (e.g. the mic button) must not render until
+  // after mount, or SSR (window undefined → no button) mismatches client
+  // hydration (button present) — a "Prop did not match" hydration error.
+  const [mounted, setMounted] = React.useState(false);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -72,6 +76,8 @@ export function Chat({
   const abortRef = React.useRef<AbortController | null>(null);
 
   const micSupported = React.useMemo(() => speechRecognitionSupported(), []);
+
+  React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -110,8 +116,17 @@ export function Chat({
     };
   }, [activeTurnId, router]);
 
+  // Adopt fresh server-provided messages (e.g. after router.refresh reconciles a
+  // durable pending turn). This must NOT run on every render: `initialMessages`
+  // gets a new array identity each render (its default is a fresh `[]`), so an
+  // unguarded setState here is an infinite render loop ("Maximum update depth
+  // exceeded"). Only apply when the message content signature actually changes.
+  const appliedInitialSigRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (inFlightRef.current) return;
+    const sig = initialMessages.map((m) => `${m.id}:${m.status ?? ""}:${m.content.length}`).join("|");
+    if (sig === appliedInitialSigRef.current) return;
+    appliedInitialSigRef.current = sig;
     setMessages(initialMessages);
     setActiveTurnId(findLatestActiveTurnId(initialMessages));
   }, [initialMessages]);
@@ -642,7 +657,7 @@ export function Chat({
                 >
                   <ListTodo className="h-[18px] w-[18px]" />
                 </IconButton>
-                {micSupported && (
+                {mounted && micSupported && (
                   <IconButton
                     label={listening ? "Stop listening" : "Voice input"}
                     onClick={toggleMic}

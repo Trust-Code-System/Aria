@@ -1,5 +1,43 @@
 # Aria verification report
 
+## 2026-07-23 — Full-app verification sweep + chat render bugs (P1)
+
+A "verify everything works" pass. Static: `typecheck` clean, `lint` clean (only
+the 3 pre-existing `app/layout.tsx` font warnings), **176 tests**, build OK.
+Pages: public 200, protected 307→login (auth guard correct). Live functional:
+regular chat answers correctly and persists; both admin features work live
+(`/api/providers/reachability` → Anthropic + OpenAI reachable, Gemini down;
+`/api/admin/health` → my new `memoryErrors` metric fired, catching the earlier
+memory-suggest failure).
+
+Two real frontend bugs found via the browser console and fixed in
+`components/chat/chat.tsx`:
+
+- **Infinite render loop** ("Maximum update depth exceeded"). The effect syncing
+  `initialMessages` called `setMessages(initialMessages)` on every render, and
+  `initialMessages` gets a fresh `[]` identity each render (its default), so it
+  re-fired forever. Because it set `messages` to `[]` each loop, it also **wiped
+  the conversation after every send** (the "chat goes blank" symptom). Fixed with
+  a content-signature guard that only applies genuinely-changed server messages.
+  After the fix, a sent turn renders inline and persists.
+- **Hydration mismatch** on the composer mic button (`speechRecognitionSupported()`
+  is false on the server, true on the client → "Prop did not match"). Gated the
+  client-only button behind a post-mount flag.
+
+Debugging note: the app registers a PWA service worker (`aria-shell-v1`) that
+served **stale JS bundles**, masking the fixes until the SW was unregistered and
+its cache cleared. Combined with the dev-server `.next` staleness, verifying a
+client change here needs: restart dev + clear `.next`, then unregister SW + hard
+reload.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` / `lint` | Passed / only known font warnings. |
+| `npm test` | Passed: 22 files, 176 tests. |
+| `npm run build` | Compiled successfully. |
+| Live regular chat | Answers correctly, renders inline, persists. |
+| Live admin endpoints | Reachability + system-health both 200 with expected data. |
+
 ## 2026-07-23 — Live Gmail send VERIFIED + the forced-temperature bug (P0/P1)
 
 The live Gmail send — the mission's single biggest unverified risk — was driven
