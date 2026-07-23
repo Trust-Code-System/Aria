@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { configured, env } from "@/lib/env";
 import { authConfigIdFor } from "@/lib/connectors/composio";
+import { stuckTurnCutoffIso } from "@/lib/chat/stuck-turns";
 
 export type HealthLevel = "ok" | "warning" | "critical";
 export interface HealthCheck {
@@ -59,13 +60,20 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
       : { name: "Connected apps", level: "warning", detail: "Connector gateway is not configured; app actions are unavailable." },
   );
 
-  const [messageState, eventsTable, receiptsTable, failedTurns, pendingApprovals, failedReceipts] = await Promise.all([
+  const stuckCutoff = stuckTurnCutoffIso();
+  const [messageState, eventsTable, receiptsTable, failedTurns, pendingApprovals, failedReceipts, stuckTurns] = await Promise.all([
     admin.from("messages").select("id, status, idempotency_key, trace_id").limit(1),
     admin.from("message_events").select("id").limit(1),
     admin.from("action_receipts").select("id").limit(1),
     admin.from("messages").select("id", { count: "exact", head: true }).eq("status", "failed"),
     admin.from("approvals").select("id", { count: "exact", head: true }).eq("status", "pending"),
     admin.from("action_receipts").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    admin
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "assistant")
+      .in("status", ["pending", "streaming"])
+      .lt("updated_at", stuckCutoff),
   ]);
   const migrationReady = !messageState.error && !eventsTable.error && !receiptsTable.error;
   checks.push(
@@ -78,9 +86,13 @@ export async function getSystemHealth(admin: SupabaseClient): Promise<{
     failedTurns: failedTurns.count ?? 0,
     pendingApprovals: pendingApprovals.count ?? 0,
     failedReceipts: failedReceipts.count ?? 0,
+    stuckTurns: stuckTurns.count ?? 0,
   };
   if (metrics.failedTurns > 0) {
     checks.push({ name: "Failed chat turns", level: "warning", detail: `${metrics.failedTurns} failed turn(s) require review.` });
+  }
+  if (metrics.stuckTurns > 0) {
+    checks.push({ name: "Stuck chat turns", level: "warning", detail: `${metrics.stuckTurns} turn(s) have been pending/streaming past the recovery threshold. POST /api/admin/health to recover them.` });
   }
   if (metrics.failedReceipts > 0) {
     checks.push({ name: "Failed app actions", level: "warning", detail: `${metrics.failedReceipts} verified execution failure(s) are recorded.` });

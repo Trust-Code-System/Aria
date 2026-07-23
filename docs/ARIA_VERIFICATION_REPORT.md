@@ -1,5 +1,23 @@
 # Aria verification report
 
+## 2026-07-23 — Memory fixes + stuck-turn recovery (P0/P1 continuation)
+
+Migration 0014 was confirmed applied to the live DB by the owner.
+
+Changes this session:
+
+- **Memory — referential save.** "save this to memory" / "remember this" / "save that" now resolve the last assistant reply and save it as an active memory (was saving the literal filler "to memory"). `lib/ai/memory-commands.ts`, `lib/ai/memory-actions.ts`, `app/api/chat/route.ts`.
+- **Memory — auto-save.** Per owner decision, chat-turn facts with model confidence ≥ 0.7 auto-save as `approved`/`active` (source `chat_auto`) with a "Saved to memory" + Undo card; weaker facts stay suggestions. `lib/ai/memory-suggest.ts`.
+- **Reliability — stuck-turn detection + recovery.** Active turns older than 5 min are reported in `/api/admin/health`; `POST /api/admin/health` marks them terminally failed (retryable). `lib/chat/stuck-turns.ts`, `lib/admin/system-health.ts`.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 18 files, 154 tests (13 memory-command + 6 stuck-turn added). |
+| `npm run build` | Passed. |
+
+Not verified this session (needs the running app / live DB / connector creds): the save→Memory-page round trip, the auto-save model+insert path, and the stuck-turn DB count/recovery queries. The pure logic behind each is unit-tested; the DB/model I/O is not.
+
 ## 2026-07-23 — Independent re-verification (continuation session)
 
 The prior session's claims were re-run from a clean working tree, not trusted:
