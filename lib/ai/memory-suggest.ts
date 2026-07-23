@@ -28,7 +28,13 @@ export interface MemorySuggestion {
 
 export interface CreatedMemorySuggestion extends MemorySuggestion {
   id: string;
+  /** "approved" = auto-saved active memory; "suggested" = awaiting approval. */
+  approvalStatus: "approved" | "suggested";
 }
+
+/** Model-reported confidence at or above this auto-saves the fact as an active
+ * memory (still secret-filtered, still undoable) rather than a suggestion. */
+const AUTO_SAVE_CONFIDENCE = 0.7;
 
 export interface MemorySuggestionOutcome {
   status: "skipped" | "zero" | "created" | "failed";
@@ -122,29 +128,31 @@ export async function suggestMemoriesFromTurn(opts: {
       continue;
     }
 
+    const autoSave = s.confidence >= AUTO_SAVE_CONFIDENCE;
     const { data, error } = await opts.supabase.from("memories").insert({
       workspace_id: opts.workspaceId,
       user_id: opts.userId,
       project_id: opts.projectId ?? null,
       type: s.type,
       content: s.content,
-      source: "chat_suggestion",
+      source: autoSave ? "chat_auto" : "chat_suggestion",
       confidence: Math.min(1, Math.max(0.1, s.confidence)),
       sensitivity: "low",
-      approval_status: "suggested",
+      approval_status: autoSave ? "approved" : "suggested",
       category: s.type,
       importance: 3,
       provenance: {
         kind: "chat_turn",
         source_message_id: opts.sourceMessageId ?? null,
         user_stated: true,
+        auto_saved: autoSave,
       },
       normalized_content: normalize(s.content),
       source_message_id: opts.sourceMessageId ?? null,
-      active: false,
+      active: autoSave,
     }).select("id").single();
     if (!error && data?.id) {
-      created.push({ ...s, id: data.id });
+      created.push({ ...s, id: data.id, approvalStatus: autoSave ? "approved" : "suggested" });
       existingNorm.add(normalize(s.content));
     } else if (error) {
       await logError({

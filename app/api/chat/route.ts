@@ -843,13 +843,21 @@ async function runAgentStream(
             sourceMessageId: params.userMessageId,
           });
           for (const suggestion of suggestions.suggestions) {
-            const event: ChatStreamEvent = {
-              type: "memory_suggestion",
-              turnId: params.body.idempotencyKey,
-              memoryId: suggestion.id,
-              content: suggestion.content,
-              memoryType: suggestion.type,
-            };
+            const event: ChatStreamEvent =
+              suggestion.approvalStatus === "approved"
+                ? {
+                    type: "memory_saved",
+                    turnId: params.body.idempotencyKey,
+                    memoryId: suggestion.id,
+                    content: suggestion.content,
+                  }
+                : {
+                    type: "memory_suggestion",
+                    turnId: params.body.idempotencyKey,
+                    memoryId: suggestion.id,
+                    content: suggestion.content,
+                    memoryType: suggestion.type,
+                  };
             uiEvents.push(event);
             safeEnqueue(event);
             await persistMessageEvent({
