@@ -1,5 +1,30 @@
 # Aria verification report
 
+## 2026-07-24 — Curated essential tool slugs for every connector
+
+Pinned `ESSENTIAL_TOOL_SLUGS` for all 21 tool-capable toolkits (was only Gmail +
+Calendar), so each connector's core read+write actions are always loaded and
+never dropped by Composio's alphabetical `limit` truncation — the same class of
+bug that once hid `GMAIL_SEND_EMAIL`.
+
+- **Sourced from the live catalog, not guessed:** queried Composio for every
+  toolkit's real slugs, curated ~5–9 core actions each (send/post, create,
+  search/list, get), then **verified every curated slug resolves** via
+  `composio.tools.get({ tools })` — the identical call the app makes at tool-load
+  time. Result: **ALL SLUGS VALID** (0 typos, 0 zero-tool toolkits).
+- This also *improves* apps that previously used discovery: e.g. GitHub's core
+  issue/PR actions sort mid-alphabet and were being truncated at `limit: 40`;
+  they are now guaranteed present.
+- Discord is intentionally left to discovery — its Composio toolkit exposes no
+  message-send action, so there is nothing essential to pin.
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 22 files, 178 tests. |
+| `npm run build` | Compiled successfully. |
+| Live Composio slug validation | 21/21 toolkits, every slug resolved. |
+
 ## 2026-07-23 — Connector catalog expansion (9 new apps) + 4 wired for chat use
 
 Grew the Connections catalog from 13 to **22 apps**, and fixed 4 that could be
