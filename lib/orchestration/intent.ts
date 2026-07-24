@@ -17,8 +17,12 @@ export type ChatIntent =
 const INSTANT_RE =
   /^(hi|hello|hey|yo|sup|thanks|thank you|thx|ok|okay|k|sure|yes|yep|yeah|no|nope|cool|great|good morning|good afternoon|good evening|gm|who are you\??|what can you do\??|help)$/i;
 
+// Any connected-app name or app verb should make a turn "action" so its tools
+// load. Keep this in sync with the connectors in composio-session's
+// PROVIDER_TO_TOOLKIT / toolkitsForIntent — an app that routes to a toolkit but
+// never triggers "action" here can never load its tools ("connector not active").
 const ACTION_RE =
-  /\b(send|email|mail|draft|schedule|calendar|invite|post|slack|notion|github|create (an? )?(event|issue|page|task)|forward|reply to)\b/i;
+  /\b(send|email|mail|draft|schedule|calendar|invite|post|forward|reply to|tweet|gmail|outlook|slack|discord|telegram|whatsapp|notion|github|jira|linear|trello|asana|todoist|hubspot|salesforce|airtable|dropbox|twitter|drive|spreadsheet|sheets?|google docs?|todo list|create (an? )?(event|issue|page|task|doc|file|record|folder|row))\b/i;
 
 const RESEARCH_RE = /\b(research|look up|search the web|latest|current events|competitors?)\b/i;
 

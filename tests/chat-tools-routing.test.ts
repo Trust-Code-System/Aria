@@ -33,6 +33,19 @@ describe("chat intent routing", () => {
     expect(intentNeedsTools("action")).toBe(true);
   });
 
+  it("classifies naming a connected app as action (so its tools load)", () => {
+    for (const message of [
+      "List a few files in my Google Drive.",
+      "Add a task in Todoist to call the client.",
+      "Send a telegram to the team.",
+      "Update my spreadsheet with Q3 numbers.",
+      "What's in my Dropbox?",
+      "Draft a tweet about the launch.",
+    ]) {
+      expect(classifyChatIntent({ mode: "general", message }), message).toBe("action");
+    }
+  });
+
   it("keeps knowledge/research modes authoritative", () => {
     expect(classifyChatIntent({ mode: "knowledge", message: "Hi" })).toBe("knowledge");
     expect(classifyChatIntent({ mode: "research", message: "war in 1950" })).toBe("research");

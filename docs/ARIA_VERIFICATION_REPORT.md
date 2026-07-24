@@ -1,5 +1,39 @@
 # Aria verification report
 
+## 2026-07-24 — Connectors "not active" fix + read-coverage gaps
+
+Owner connected the new apps but naming one in chat returned "the connector is
+not active in this session." Root cause: the intent classifier's `ACTION_RE`
+(what makes a turn "action" and loads connector tools) still only listed the
+original apps — `notion`/`github`/`slack` worked, but `drive`, `sheets`, `docs`,
+`dropbox`, `todoist`, `telegram`, `discord`, `twitter`, etc. never triggered
+"action", so their tools never loaded even though the accounts were connected.
+
+- **Fix:** expanded `ACTION_RE` in `lib/orchestration/intent.ts` to include every
+  connected-app name and app verb, kept in sync with `toolkitsForIntent`.
+- **Read-coverage gaps found while testing** (curated slug sets over-indexed on
+  writes): Todoist had no *list active tasks* (added `TODOIST_GET_ALL_TASKS` +
+  `GET_ALL_PROJECTS`/`QUICK_ADD_TASK`/`FILTER_TASKS`); Outlook couldn't list the
+  inbox (added `OUTLOOK_LIST_MESSAGES`); Slack gained channel/history reads.
+  All added slugs verified against the live Composio API.
+
+Live end-to-end (localhost, owner's real connected accounts):
+- Google Drive → listed real files (Sheet/Doc/Folder/Video).
+- Notion → returned real workspace pages.
+- Todoist → `GET_ALL_TASKS` returned the real (empty) active list.
+
+Connection status snapshot (live DB): 16 apps connected with read+write tools
+(Gmail, Google Calendar/Drive/Sheets/Docs, Dropbox, Airtable, Notion, Slack,
+GitHub, Linear, Trello, Todoist, Discord, Telegram, X). Not fully connected:
+Jira/Salesforce/WhatsApp (`pending`), Asana/HubSpot (`setup_incomplete`).
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| `npm test` | Passed: 22 files, 179 tests (+1 intent). |
+| `npm run build` | Compiled successfully. |
+| Live connector turns | Drive, Notion, Todoist all returned real data. |
+
 ## 2026-07-24 — Curated essential tool slugs for every connector
 
 Pinned `ESSENTIAL_TOOL_SLUGS` for all 21 tool-capable toolkits (was only Gmail +
